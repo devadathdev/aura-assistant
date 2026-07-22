@@ -1,0 +1,154 @@
+# AURA
+
+AURA is a cinematic, voice-first browser assistant. It combines a responsive command-center interface with browser speech APIs, built-in commands and memory, and optional live responses from NVIDIA's Nemotron API.
+
+The server uses only Node.js built-ins, while the client is plain HTML, CSS, and JavaScript. There is no dependency installation or build step.
+
+## Features
+
+- Text commands and hands-free input with the `Aura` wake word across selectable recognition languages
+- Spoken responses through the browser Speech Synthesis API
+- Optional live AI using `nvidia/nemotron-3-ultra-550b-a55b`
+- Offline commands for status, time, date, arithmetic, and navigation
+- Notes and recent conversation history persisted in `localStorage`
+- Focus, Stealth, and Cinema interface modes
+- Responsive animated dashboard with connection and latency indicators
+- Server-side API credentials that are never exposed to the browser
+
+## Requirements
+
+- Node.js 18 or newer
+- A modern browser
+- A Chromium-based browser is recommended for speech recognition
+- An NVIDIA API key is required only for live AI responses
+
+## Quick start
+
+```bash
+git clone https://github.com/devadathdev/aura-assistant.git
+cd aura-assistant
+npm start
+```
+
+Open [http://localhost:3000](http://localhost:3000). Without an API key, AURA starts in local mode and its built-in commands remain available.
+
+For development with automatic server restarts:
+
+```bash
+npm run dev
+```
+
+## Enable live AI
+
+Create a `.env` file in the project root:
+
+```dotenv
+NVIDIA_API_KEY=your-nvidia-api-key
+PORT=3000
+```
+
+Restart the server after changing the environment. When the credential is loaded, the UI reports `LIVE API CONNECTED`; otherwise it uses the local command core.
+
+The model and NVIDIA endpoint are configured in `server.js`:
+
+```text
+Model:    nvidia/nemotron-3-ultra-550b-a55b
+Endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+```
+
+Environment variables already defined by the shell take precedence over values in `.env`.
+
+## Usage
+
+Type into the command dock, choose a quick command, click the central orb or microphone, or say `Aura` while the page is open. Include the request in the same phrase (`Aura, what time is it?`) or pause after the wake word and speak after the tone.
+
+Choose a locale under **Environment → Recognition Language**. AURA remembers the selection and uses it for both speech recognition and its preferred spoken-response voice. Available recognition languages still depend on the browser and operating system.
+
+Local commands are handled in the browser even when live AI is enabled:
+
+| Command | Action |
+| --- | --- |
+| `/help` | Show AURA's capabilities |
+| `/status` | Report connection, voice, wake-word, and memory status |
+| `/clear` | Clear conversation history |
+| `/mute` / `/voice` | Disable or restore spoken responses |
+| `/sleep` / `/wake` | Disable or enable wake-word monitoring |
+| `/remember <note>` | Store a browser-local note |
+| `/recall` | List stored notes |
+| `calculate 18 * 7` | Evaluate basic arithmetic |
+| `open github.com` | Open a website in a new tab |
+
+Natural-language variations such as `what time is it?`, `remember that I prefer concise answers`, and `show memories` also work.
+
+### Keyboard controls
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+K` / `Cmd+K` | Focus the command input |
+| `/` | Focus the command input |
+| `Enter` | Submit a command |
+| `Escape` | Cancel voice input or speech and return to standby |
+
+## Architecture
+
+```text
+Browser (public/)
+  |-- local commands, Web Speech APIs, and localStorage
+  |-- GET /api/status
+  `-- POST /api/assistant
+              |
+Node HTTP server (server.js)
+  |-- static file serving and .env loading
+  |-- credential isolation
+  `-- NVIDIA chat-completions request
+```
+
+The browser sends up to the 12 most recent user and assistant messages for a live request. The server adds AURA's system prompt, calls NVIDIA's streaming endpoint, assembles the response, and returns JSON. If live AI is unavailable, the interface falls back to local commands.
+
+### HTTP endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` / `HEAD` | `/api/status` | Report live AI configuration and model |
+| `POST` | `/api/assistant` | Generate a response from recent messages |
+| `GET` / `HEAD` | `/*` | Serve files from `public/` |
+
+Example request:
+
+```bash
+curl http://localhost:3000/api/assistant -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"Give me a short status report."}]}'
+```
+
+## Data and privacy
+
+- `NVIDIA_API_KEY` stays on the server and is not returned by the API.
+- Notes, voice preferences, wake-word settings, and the latest 20 messages are stored in the browser's `localStorage`.
+- Live AI requests send recent conversation context to NVIDIA. Local commands do not require the external API.
+- Clearing site data removes AURA's browser-local history and notes.
+
+## Project structure
+
+```text
+.
+|-- public/
+|   |-- app.js       # Commands, voice, persistence, and UI behavior
+|   |-- index.html   # Dashboard markup
+|   `-- styles.css   # Responsive interface and animations
+|-- .env.example     # Environment variable template
+|-- package.json     # Runtime requirement and npm scripts
+`-- server.js        # HTTP server, static files, and NVIDIA API proxy
+```
+
+## Validation
+
+```bash
+npm run check
+```
+
+## Troubleshooting
+
+- **Voice input says `TEXT ONLY`:** use a browser that implements `SpeechRecognition` or `webkitSpeechRecognition`.
+- **The wake word does not activate:** allow microphone access, keep the page visible, and use `/wake` or click the microphone.
+- **AURA remains in local mode:** confirm `NVIDIA_API_KEY` is present in `.env` or the server environment, then restart Node.js.
+- **Speech is unavailable:** confirm speech synthesis support and check that AURA is not in Stealth mode or muted.
+- **A site does not open:** allow pop-ups for the local AURA page; navigation commands open a new tab.

@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AURA is a cinematic, voice-first personal AI assistant."
+    />
+    <meta name="theme-color" content="#00030a" />
+    <title>AURA // Neural Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script defer src="/auth-enhanced.js"></script>
+    <script defer src="/auth-enhanced.js"></script>
+    <script defer src="/liveness-detector.js"></script>
+  </head>
+  <body>
+    <canvas id="background-depth-layer-1" aria-hidden="true"></canvas>
+    <canvas id="background-depth-layer-2" aria-hidden="true"></canvas>
+    <canvas id="background-depth-layer-3" aria-hidden="true"></canvas>
+    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+    <canvas id="neural-canvas" aria-hidden="true"></canvas>
+    <canvas id="grid-canvas" aria-hidden="true"></canvas>
+    <canvas id="radar-sweep" aria-hidden="true"></canvas>
+    <div class="scanline" aria-hidden="true"></div>
+    <div class="glitch-overlay" aria-hidden="true"></div>
+    <div class="bloom-overlay" aria-hidden="true"></div>
+
+    <div class="face-auth-overlay" id="face-auth-overlay" role="dialog" aria-modal="true" aria-labelledby="face-auth-title" hidden>
+      <div class="face-auth-container">
+        <div class="face-auth-header">
+          <div class="face-auth-brand hud-glow">
+            <span class="face-auth-ring inner-ring"></span>
+            <span class="face-auth-ring middle-ring"></span>
+            <span class="face-auth-ring outer-ring"></span>
+          </div>
+          <h1 id="face-auth-title" class="face-auth-title">AURA // FACE ID</h1>
+          <p class="face-auth-subtitle">Biometric authentication required</p>
+        </div>
+
+        <div class="face-auth-video-wrap">
+          <video id="face-auth-video" autoplay muted playsinline aria-hidden="true"></video>
+          <canvas id="face-auth-canvas" aria-hidden="true"></canvas>
+          <div class="face-auth-scanline" aria-hidden="true"></div>
+          <div class="face-auth-corners" aria-hidden="true">
+            <span class="corner tl"></span>
+            <span class="corner tr"></span>
+            <span class="corner bl"></span>
+            <span class="corner br"></span>
+          </div>
+        </div>
+
+        <div class="face-auth-status" id="face-auth-status">
+          <div class="face-auth-scanner hud-scanner" aria-hidden="true">
+            <span class="scanner-line"></span>
+          </div>
+          <p id="face-auth-message" class="face-auth-message">Initializing face detection...</p>
+          <div class="face-auth-progress hud-progress" aria-hidden="true"><span style="width: 0%"></span></div>
+          <p id="face-auth-confidence" class="face-auth-confidence hud-text-muted" hidden>Match confidence: <strong>--%</strong></p>
+        </div>
+
+        <div class="face-auth-actions">
+          <button type="button" id="face-auth-enroll" class="face-auth-btn secondary" hidden>
+            <span class="btn-icon">+</span>
+            Enroll Face
+          </button>
+          <button type="button" id="face-auth-skip" class="face-auth-btn ghost">
+            <span class="btn-icon">⌘</span>
+            Use Passcode
+          </button>
+        </div>
+
+        <!-- PIN Entry UI -->
+        <div id="face-auth-pin" class="face-auth-pin" hidden>
+          <p class="face-auth-pin-label">Enter PIN</p>
+          <div class="face-auth-pin-inputs" aria-label="PIN entry">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 1">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 2">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 3">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 4">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 5">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 6">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 7">
+            <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 8">
+          </div>
+          <p id="face-auth-pin-error" class="face-auth-pin-error hud-text-muted" hidden></p>
+          <button type="button" id="face-auth-pin-submit" class="face-auth-btn primary" hidden>Submit</button>
+          <button type="button" id="face-auth-pin-cancel" class="face-auth-btn ghost" hidden>Back to Face ID</button>
+        </div>
+
+        <div class="face-auth-footer">
+          <span class="face-auth-secure">🔒 Biometric data stays local</span>
+          <span id="face-auth-enrolled" class="face-auth-enrolled hud-text-muted" hidden>Face enrolled</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <header class="topbar hud-panel">
+        <a class="brand" href="#" aria-label="AURA home">
+          <span class="brand-mark hud-glow" aria-hidden="true">
+            <span class="hud-ring inner-ring"></span>
+            <span class="hud-ring middle-ring"></span>
+            <span class="hud-ring outer-ring"></span>
+          </span>
+          <span>
+            <strong>AURA</strong>
+            <small>NEURAL OPERATING SYSTEM</small>
+          </span>
+        </a>
+
+        <div class="topbar-center">
+          <span class="status-dot hud-active"></span>
+          <span id="connection-label" class="hud-accent">INITIALIZING</span>
+          <span class="separator">/</span>
+          <span id="mode-label" class="hud-text-muted">LOCAL CORE</span>
+          <span class="hud-indicator" id="ai-indicator"></span>
+        </div>
+
+        <div class="clock-block">
+          <strong id="clock">00:00:00</strong>
+          <small id="date">FRI / 12 JUN</small>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <aside class="left-rail panel-column">
+          <section class="hud-card system-card">
+            <div class="section-heading hud-section-header">
+              <span>SYSTEM STATUS</span>
+              <span class="mini-state hud-mint">OPTIMAL</span>
+            </div>
+
+            <div class="system-row">
+              <div class="metric-ring hud-ring-animated" style="--value: 86">
+                <span>86<span>%</span></span>
+                <div class="ring-digits" aria-hidden="true">
+                  <span class="digit">8</span>
+                  <span class="digit">6</span>
+                </div>
+              </div>
+              <div class="metric-copy">
+                <strong>NEURAL CORE</strong>
+                <small>Processing capacity</small>
+                <div class="micro-bars hud-bars" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="telemetry hud-telemetry">
+              <div>
+                <span>LATENCY</span>
+                <strong id="latency-value">12<small>ms</small></strong>
+              </div>
+              <div>
+                <span>MEMORY</span>
+                <strong id="memory-count">0<small>items</small></strong>
+              </div>
+              <div>
+                <span>UPTIME</span>
+                <strong id="uptime">00:00</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="hud-card hud-network-card">
+            <div class="section-heading hud-section-header">
+              <span>NETWORK</span>
+              <span class="hud-badge" id="network-status">ONLINE</span>
+            </div>
+            <div class="network-visualizer" aria-hidden="true">
+              <canvas id="network-graph" width="200" height="120"></canvas>
+            </div>
+            <div class="network-stats">
+              <div><span>PING</span><strong id="ping-value">--<small>ms</small></strong></div>
+              <div><span>THROUGHPUT</span><strong id="throughput-value">--<small>Kb/s</small></strong></div>
+            </div>
+          </section>
+
+          <section class="hud-card diagnostics-card">
+            <div class="section-heading hud-section-header">
+              <span>DIAGNOSTICS</span>
+              <span>03</span>
+            </div>
+            <div class="diagnostic-grid">
+              <div class="diag-item">
+                <span class="diag-label">CPU</span>
+                <div class="diag-value hud-cyan">--<span>%</span></div>
+              </div>
+              <div class="diag-item">
+                <span class="diag-label">GPU</span>
+                <div class="diag-value hud-cyan">--<span>%</span></div>
+              </div>
+              <div class="diag-item">
+                <span class="diag-label">RAM</span>
+                <div class="diag-value hud-cyan">--<span>%</span></div>
+              </div>
+              <div class="diag-item">
+                <span class="diag-label">DISK</span>
+                <div class="diag-value hud-cyan">--<span>%</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="hud-card">
+            <div class="section-heading hud-section-header">
+              <span>QUICK COMMANDS</span>
+              <span>⌘ K</span>
+            </div>
+            <div class="quick-list">
+              <button class="quick-command hud-command" data-command="Give me a system status report">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 17V7m5 10V11m5 6V4m5 13V9" />
+                  </svg>
+                </span>
+                <span><strong>System report</strong><small>Health and diagnostics</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="What time is it?">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                </span>
+                <span><strong>Time check</strong><small>Local time and date</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="/brief">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 5h16v14H4z" />
+                    <path d="M8 3v4M16 3v4M4 9h16M8 13h3M8 16h6" />
+                  </svg>
+                </span>
+                <span><strong>Daily brief</strong><small>Tasks, reminders, timer</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="World news">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 4h11a3 3 0 0 1 3 3v13H7a2 2 0 0 1-2-2V4Z" />
+                    <path d="M8 8h7M8 12h8M8 16h5" />
+                  </svg>
+                </span>
+                <span><strong>World news</strong><small>Latest headlines</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="/tasks">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 6h12M8 12h12M8 18h12" />
+                    <path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2" />
+                  </svg>
+                </span>
+                <span><strong>Task queue</strong><small>Open local tasks</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="/reminders">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" />
+                    <path d="M10 21h4" />
+                  </svg>
+                </span>
+                <span><strong>Reminders</strong><small>Upcoming alerts</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="What do you remember about me?">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 6a4 4 0 0 1 8 0v1a4 4 0 0 1 2 7.5A4 4 0 0 1 11 17a4 4 0 0 1-7-2.5A4 4 0 0 1 6 7V6" />
+                    <path d="M12 5v14" />
+                  </svg>
+                </span>
+                <span><strong>Recall memory</strong><small>Review saved context</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+              <button class="quick-command hud-command" data-command="/help">
+                <span class="quick-icon hud-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M9.8 9a2.3 2.3 0 0 1 4.4 1c0 2-2.2 2-2.2 4M12 17h.01" />
+                  </svg>
+                </span>
+                <span><strong>Command guide</strong><small>View capabilities</small></span>
+                <span class="arrow hud-arrow">↗</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="hud-card task-card">
+            <div class="section-heading hud-section-header">
+              <span>MISSION QUEUE</span>
+              <span id="task-count" class="hud-badge-small">0 OPEN</span>
+            </div>
+            <div class="queue-list" id="task-list" aria-live="polite">
+              <div class="queue-empty">No active tasks.</div>
+            </div>
+          </section>
+
+          <section class="hud-card hud-security-card" id="security-card" role="button" tabindex="0" aria-label="Security settings">
+            <div class="security-header">
+              <div class="shield-icon hud-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3 5 6v5c0 4.6 2.8 8.3 7 10 4.2-1.7 7-5.4 7-10V6l-7-3Z" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+              </div>
+              <div>
+                <span>SECURITY PROTOCOL</span>
+                <strong>ENCRYPTION ACTIVE</strong>
+              </div>
+              <span class="live-pip hud-active"></span>
+            </div>
+            <div class="security-status">
+              <div class="status-indicator">
+                <span class="status-label">FIREWALL</span>
+                <span class="status-value hud-mint">SECURE</span>
+              </div>
+              <div class="status-indicator">
+                <span class="status-label">ENCRYPTION</span>
+                <span class="status-value hud-mint">AES-256</span>
+              </div>
+              <div class="status-indicator">
+                <span class="status-label">FACE ID</span>
+                <span class="status-value" id="face-auth-status">PASSCODE ONLY</span>
+              </div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="core-stage">
+          <div class="core-copy">
+            <span class="eyebrow hud-eyebrow">AURA CORE // ONLINE</span>
+            <h1 id="greeting">Good evening.</h1>
+            <p id="assistant-status">All systems are operational. How can I assist?</p>
+          </div>
+
+          <div class="orb-wrap hud-orb" id="orb-wrap">
+            <div class="reactor-layer reactor-core"></div>
+            <div class="reactor-layer reactor-middle">
+              <div class="reactor-dots">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+            <div class="reactor-layer reactor-outer">
+              <div class="reactor-grid" aria-hidden="true"></div>
+            </div>
+            <div class="orbit orbit-one"><i></i><i></i></div>
+            <div class="orbit orbit-two"><i></i></div>
+            <div class="orbit orbit-three"></div>
+            <button class="core-button hud-button" id="core-button" aria-label="Start voice command">
+              <span class="core-glass">
+                <span class="core-light"></span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" />
+                </svg>
+              </span>
+            </button>
+            <div class="orb-label">
+              <span id="orb-state">SAY "AURA"</span>
+              <div class="waveform hud-waveform" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+            <div class="targeting-reticle" aria-hidden="true"></div>
+          </div>
+
+          <div class="conversation hud-conversation" id="conversation" aria-live="polite">
+            <article class="message assistant-message hud-message">
+              <div class="message-meta">
+                <span class="message-avatar hud-avatar">A</span>
+                <span>AURA</span>
+                <time>NOW</time>
+              </div>
+              <p>Interface synchronized. Say "Aura" to wake me, or use the command console.</p>
+            </article>
+          </div>
+
+          <div class="suggestion-row hud-suggestions" id="suggestion-row">
+            <button data-command="/brief">Daily brief</button>
+            <button data-command="Give me a system status report">Run diagnostics</button>
+            <button data-command="/task Review tomorrow's priorities">Add a task</button>
+            <button data-command="/convert 10 miles to km">Convert units</button>
+            <button data-command="/roll 2d6">Roll dice</button>
+          </div>
+        </section>
+
+        <aside class="right-rail panel-column">
+          <section class="hud-card environment-card">
+            <div class="section-heading hud-section-header">
+              <span>ENVIRONMENT</span>
+              <span id="environment-location">LOCAL</span>
+            </div>
+            <div class="environment-main">
+              <div class="environment-orb hud-orb-small" aria-hidden="true">
+                <span class="orb-core"></span>
+                <span class="orb-ring"></span>
+                <span class="orb-pulse"></span>
+              </div>
+              <div>
+                <strong id="environment-time">20:42</strong>
+                <span id="day-period">EVENING</span>
+              </div>
+            </div>
+            <div class="environment-stats">
+              <div><span>DISPLAY</span><strong>ADAPTIVE</strong></div>
+              <div><span>VOICE</span><strong id="voice-support">CHECKING</strong></div>
+            </div>
+            <div class="hands-free-control hud-control-group">
+              <div>
+                <span>HANDS-FREE MODE</span>
+                <small>Continuously listen for "Aura"</small>
+              </div>
+              <button
+                id="hands-free-toggle"
+                type="button"
+                role="switch"
+                aria-checked="true"
+                aria-label="Toggle hands-free wake-word listening"
+              >
+                <i aria-hidden="true"></i>
+                <strong>ON</strong>
+              </button>
+            </div>
+            <div class="language-control">
+              <label for="language-select">RECOGNITION LANGUAGE</label>
+              <select id="language-select" aria-label="Speech recognition language">
+                <option value="auto">Browser default</option>
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="en-IN">English (India)</option>
+                <option value="ml-IN">Malayalam</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+                <option value="kn-IN">Kannada</option>
+                <option value="bn-IN">Bengali</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="gu-IN">Gujarati</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="pt-BR">Portuguese (Brazil)</option>
+                <option value="ar-SA">Arabic</option>
+                <option value="zh-CN">Mandarin Chinese</option>
+                <option value="ja-JP">Japanese</option>
+                <option value="ko-KR">Korean</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="hud-card weather-card">
+            <div class="section-heading hud-section-header">
+              <span>WEATHER</span>
+              <span id="weather-location" class="hud-accent">--</span>
+            </div>
+            <div class="weather-body" id="weather-body">
+              <div class="weather-primary">
+                <span class="weather-temp hud-cyan-bright" id="weather-temp">--°</span>
+                <span class="weather-condition hud-mint" id="weather-condition">--</span>
+              </div>
+              <div class="weather-details">
+                <div><span>FEELS</span><strong id="weather-feels">--°</strong></div>
+                <div><span>HUMIDITY</span><strong id="weather-humidity">--%</strong></div>
+                <div><span>WIND</span><strong id="weather-wind">--</strong></div>
+              </div>
+              <div class="weather-city-input">
+                <input type="text" id="weather-city-input" placeholder="Search city..." maxlength="80" />
+                <button type="button" id="weather-search">SET</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="hud-card reminder-card">
+            <div class="section-heading hud-section-header">
+              <span>REMINDERS</span>
+              <span id="reminder-count" class="hud-badge-small">0 ACTIVE</span>
+            </div>
+            <div class="reminder-list" id="reminder-list" aria-live="polite">
+              <div class="queue-empty">No scheduled reminders.</div>
+            </div>
+          </section>
+
+          <section class="hud-card timer-card">
+            <div class="section-heading hud-section-header">
+              <span>FOCUS TIMER</span>
+              <span id="timer-phase" class="hud-badge">WORK</span>
+            </div>
+            <div class="timer-body">
+              <strong class="timer-time hud-cyan-bright" id="timer-time">25:00</strong>
+              <div class="timer-progress hud-progress" id="timer-progress"><span style="width: 0%"></span></div>
+              <div class="timer-controls">
+                <button type="button" id="timer-toggle" class="timer-btn primary">START</button>
+                <button type="button" id="timer-reset" class="timer-btn">RESET</button>
+              </div>
+              <div class="timer-settings">
+                <label>WORK <input type="number" id="timer-work" value="25" min="1" max="120" />m</label>
+                <label>BREAK <input type="number" id="timer-break" value="5" min="1" max="30" />m</label>
+              </div>
+            </div>
+          </section>
+
+          <section class="hud-card data-card">
+            <div class="section-heading hud-section-header">
+              <span>LOCAL DATA</span>
+              <span>BROWSER</span>
+            </div>
+            <div class="data-actions">
+              <button type="button" id="export-data" class="ghost-btn">EXPORT</button>
+              <button type="button" id="import-data" class="ghost-btn">IMPORT</button>
+              <button type="button" id="clear-local-data" class="ghost-btn">RESET</button>
+              <input id="import-file" type="file" accept="application/json" hidden />
+            </div>
+            <div class="memory-section" id="memory-section">
+              <div class="memory-header">
+                <span>MEMORIES</span>
+                <span id="memory-count-label">0</span>
+              </div>
+              <div class="memory-list" id="memory-list">
+                <div class="queue-empty">No stored memories.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="hud-card activity-card">
+            <div class="section-heading hud-section-header">
+              <span>ACTIVITY STREAM</span>
+              <button id="clear-activity" class="hud-clear-btn">CLEAR</button>
+            </div>
+            <div class="activity-list" id="activity-list">
+              <div class="activity-item hud-activity">
+                <span class="activity-line"></span>
+                <span class="activity-node hud-node-active"></span>
+                <div><strong>Neural core initialized</strong><small>Just now</small></div>
+              </div>
+              <div class="activity-item hud-activity">
+                <span class="activity-line"></span>
+                <span class="activity-node hud-node-active"></span>
+                <div><strong>Local memory mounted</strong><small>Just now</small></div>
+              </div>
+              <div class="activity-item hud-activity">
+                <span class="activity-node muted"></span>
+                <div><strong>Awaiting your directive</strong><small>Standby</small></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="hud-card modes-card">
+            <div class="section-heading hud-section-header">
+              <span>INTERFACE MODES</span>
+              <span>03</span>
+            </div>
+            <button class="mode-toggle active" data-mode="focus">
+              <span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="7" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              </span>
+              <span><strong>Focus</strong><small>Standard assistance</small></span>
+              <i class="mode-indicator"></i>
+            </button>
+            <button class="mode-toggle" data-mode="stealth">
+              <span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z" />
+                  <circle cx="12" cy="12" r="2" />
+                </svg>
+              </span>
+              <span><strong>Stealth</strong><small>Muted responses</small></span>
+              <i class="mode-indicator"></i>
+            </button>
+            <button class="mode-toggle" data-mode="cinema">
+              <span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16v10H4zM8 7l2-3m4 3 2-3" />
+                </svg>
+              </span>
+              <span><strong>Cinema</strong><small>Immersive display</small></span>
+              <i class="mode-indicator"></i>
+            </button>
+          </section>
+        </aside>
+      </main>
+
+      <footer class="command-dock hud-dock">
+        <div class="dock-corner left"></div>
+        <form id="command-form">
+          <button type="button" class="dock-button" id="voice-button" aria-label="Voice input">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+            </svg>
+          </button>
+          <div class="command-input-wrap">
+            <span class="prompt-mark">&gt;_</span>
+            <input
+              id="command-input"
+              type="text"
+              autocomplete="off"
+              placeholder="Enter a command or ask anything..."
+              aria-label="Command input"
+            />
+            <span class="key-hint">ENTER</span>
+          </div>
+          <button type="submit" class="send-button" aria-label="Send command">
+            <span>EXECUTE</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m5 12 14-7-4 14-3-6-7-1Z" />
+            </svg>
+          </button>
+        </form>
+        <div class="dock-meta">
+          <span><i class="meta-pulse"></i> SECURE CHANNEL</span>
+          <span>ESC TO CANCEL</span>
+        </div>
+        <div class="dock-corner right"></div>
+      </footer>
+    </div>
+
+    <template id="message-template">
+      <article class="message hud-message">
+        <div class="message-meta">
+          <span class="message-avatar hud-avatar"></span>
+          <span class="message-name"></span>
+          <time>NOW</time>
+        </div>
+        <p></p>
+      </article>
+    </template>
+
+    <template id="queue-item-template">
+      <button type="button" class="queue-item hud-queue-item">
+        <span class="queue-index"></span>
+        <span class="queue-body">
+          <strong class="queue-title"></strong>
+          <small class="queue-meta"></small>
+        </span>
+      </button>
+    </template>
+
+    <template id="reminder-item-template">
+      <button type="button" class="queue-item reminder-item hud-queue-item">
+        <span class="queue-index"></span>
+        <span class="queue-body">
+          <strong class="queue-title"></strong>
+          <small class="queue-meta"></small>
+        </span>
+      </button>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

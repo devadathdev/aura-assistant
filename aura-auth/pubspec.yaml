@@ -1,0 +1,59 @@
+name: aura_auth
+description: AURA Authentication System - Face recognition with liveness detection
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Camera
+  camera: ^0.10.5+9
+  
+  # MediaPipe Face Landmarker (via tflite_flutter)
+  tflite_flutter: ^0.10.4
+  tflite_flutter_helper: ^0.3.1
+  google_mlkit_face_detection: ^0.11.0
+  
+  # Biometric Authentication
+  local_auth: ^2.2.0
+  
+  # Encryption & Keystore
+  flutter_secure_storage: ^9.2.2
+  encrypt: ^5.0.3
+  pointycastle: ^3.8.0
+  
+  # State Management
+  riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+  
+  # Navigation
+  go_router: ^13.2.0
+  
+  # Utilities
+  path_provider: ^2.1.2
+  shared_preferences: ^2.2.2
+  permission_handler: ^11.3.1
+  image: ^4.2.0
+  vector_math: ^2.1.4
+  
+  # Background/Lifecycle
+  flutter_background_service: ^5.0.5
+  workmanager: ^0.5.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  riverpod_generator: ^2.4.0
+  build_runner: ^2.4.8
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.10
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/
+    - assets/labels/

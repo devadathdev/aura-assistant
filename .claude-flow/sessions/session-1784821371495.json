@@ -1,0 +1,14 @@
+{
+  "id": "session-1784821371495",
+  "startedAt": "2026-07-23T15:42:51.495Z",
+  "cwd": "/root/aura-assistant",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-07-23T15:47:44.805Z",
+  "duration": 293312
+}

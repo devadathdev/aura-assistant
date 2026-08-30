@@ -39,6 +39,13 @@ class LocalAIEngine {
       contextLength: 131072,
       quantized: true,
     },
+    'llama-3.2-2b': {
+      modelId: 'Xenova/Llama-3.2-2B-Instruct',
+      displayName: 'Llama 3.2 2B (Meta)',
+      size: '2.0 GB',
+      contextLength: 131072,
+      quantized: true,
+    },
   };
 
   async loadModel(modelKey, onProgress) {

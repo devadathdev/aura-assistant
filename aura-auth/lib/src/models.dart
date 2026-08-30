@@ -12,6 +12,8 @@ enum AuthMethod {
   faceWithLiveness,
   pin,
   biometric,
+  fingerprint,
+  iris,
 }
 
 enum FaceEnrollmentStatus {
@@ -215,6 +217,7 @@ class AuthConfig {
   final int livenessChallengeCount;
   final Duration livenessChallengeTimeout;
   final double faceSimilarityThreshold;
+  final double irisSimilarityThreshold;
   final Duration autoLockTimeout;
   final int maxPinAttempts;
   final Duration pinLockoutDuration;
@@ -226,6 +229,7 @@ class AuthConfig {
     this.livenessChallengeCount = 3,
     this.livenessChallengeTimeout = const Duration(seconds: 5),
     this.faceSimilarityThreshold = 0.75,
+    this.irisSimilarityThreshold = 0.72,
     this.autoLockTimeout = const Duration(minutes: 5),
     this.maxPinAttempts = 5,
     this.pinLockoutDuration = const Duration(minutes: 15),

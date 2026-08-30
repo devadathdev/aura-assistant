@@ -13,6 +13,11 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@openrouter/sdk": "^0.13.24"
+    "@openrouter/sdk": "^0.13.24",
+    "dotenv": "^17.4.2",
+    "wikijs": "^6.4.1"
+  },
+  "devDependencies": {
+    "@omniroute/opencode-provider": "^0.1.0"
   }
 }

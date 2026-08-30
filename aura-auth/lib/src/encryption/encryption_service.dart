@@ -8,6 +8,7 @@ import '../models.dart';
 class EncryptionService {
   static const String _keystoreAlias = 'aura_auth_key';
   static const String _embeddingsKey = 'face_embeddings';
+  static const String _irisEmbeddingsKey = 'iris_embeddings';
   static const String _pinHashKey = 'pin_hash';
   static const String _authConfigKey = 'auth_config';
   static const String _lastActivityKey = 'last_activity';
@@ -66,6 +67,26 @@ class EncryptionService {
     }
   }
 
+  Future<void> storeIrisEmbeddings(List<FaceEmbedding> embeddings) async {
+    final json = jsonEncode(embeddings.map((e) => e.toJson()).toList());
+    final encrypted = _encrypter.encrypt(json, iv: _iv);
+    await _secureStorage.write(key: _irisEmbeddingsKey, value: base64.encode(encrypted.bytes));
+  }
+
+  Future<List<FaceEmbedding>> getIrisEmbeddings() async {
+    final encryptedData = await _secureStorage.read(key: _irisEmbeddingsKey);
+    if (encryptedData == null) return [];
+    
+    try {
+      final encrypted = Encrypted(base64.decode(encryptedData), iv: _iv);
+      final decrypted = _encrypter.decrypt(encrypted);
+      final List<dynamic> json = jsonDecode(decrypted);
+      return json.map((e) => FaceEmbedding.fromJson(e)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
   Future<void> storePinHash(PinHash pinHash) async {
     final json = jsonEncode(pinHash.toJson());
     final encrypted = _encrypter.encrypt(json, iv: _iv);
@@ -91,6 +112,7 @@ class EncryptionService {
       'livenessChallengeCount': config.livenessChallengeCount,
       'livenessChallengeTimeout': config.livenessChallengeTimeout.inMilliseconds,
       'faceSimilarityThreshold': config.faceSimilarityThreshold,
+      'irisSimilarityThreshold': config.irisSimilarityThreshold,
       'autoLockTimeout': config.autoLockTimeout.inMilliseconds,
       'maxPinAttempts': config.maxPinAttempts,
       'pinLockoutDuration': config.pinLockoutDuration.inMilliseconds,
@@ -114,6 +136,7 @@ class EncryptionService {
         livenessChallengeCount: json['livenessChallengeCount'] ?? 3,
         livenessChallengeTimeout: Duration(milliseconds: json['livenessChallengeTimeout'] ?? 5000),
         faceSimilarityThreshold: (json['faceSimilarityThreshold'] ?? 0.75).toDouble(),
+        irisSimilarityThreshold: (json['irisSimilarityThreshold'] ?? 0.72).toDouble(),
         autoLockTimeout: Duration(milliseconds: json['autoLockTimeout'] ?? 300000),
         maxPinAttempts: json['maxPinAttempts'] ?? 5,
         pinLockoutDuration: Duration(milliseconds: json['pinLockoutDuration'] ?? 900000),

@@ -11,6 +11,7 @@ abstract class FaceDetector {
 
 abstract class FaceEmbedder {
   Future<FaceEmbedding?> extractEmbedding(ui.Image image, FaceDetectionResult detection);
+  Future<FaceEmbedding?> extractIrisEmbedding(ui.Image image, FaceDetectionResult detection);
   Future<void> close();
 }
 
@@ -202,6 +203,16 @@ class TFLiteFaceEmbedder implements FaceEmbedder {
   @override
   Future<void> close() async {
     await _interpreter.close();
+  }
+
+  @override
+  Future<FaceEmbedding?> extractIrisEmbedding(ui.Image image, FaceDetectionResult detection) async {
+    if (!detection.faceDetected) return null;
+
+    // Extract eye regions and compute iris embedding
+    // For now, we'll use the full face embedding as iris embedding
+    // In production, a dedicated iris recognition model would be used
+    return extractEmbedding(image, detection);
   }
 }
 

@@ -1,10 +1,35 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-browser"],
+  "mcp": {
+    "browsermcp": {
+      "type": "local",
+      "command": ["npx", "-y", "@browsermcp/mcp@latest"],
+      "enabled": true
+    }
+  },
   "provider": {
     "openrouter": {
       "models": {
         "~anthropic/claude-sonnet-latest": {},
         "~google/gemini-flash-latest": {}
+      }
+    },
+    "omniroute": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OmniRoute",
+      "options": {
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "<your-key>"
+      },
+      "models": {
+        "claude-opus-4-5-thinking": { "name": "claude-opus-4-5-thinking" },
+        "claude-sonnet-4-5-thinking": { "name": "claude-sonnet-4-5-thinking" },
+        "gemini-3.1-pro-high": { "name": "gemini-3.1-pro-high" },
+        "gemini-3-flash": { "name": "gemini-3-flash" },
+        "nvidia/nvidia/nemotron-3-super-120b-a12b": { "name": "nvidia/nvidia/nemotron-3-super-120b-a12b" },
+        "nvidia/openai/gpt-oss-20b": { "name": "nvidia/openai/gpt-oss-20b" },
+        "nvidia/deepseek-ai/deepseek-v4-pro": { "name": "nvidia/deepseek-ai/deepseek-v4-pro" }
       }
     }
   }

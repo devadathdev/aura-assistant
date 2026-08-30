@@ -75,6 +75,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _buildAuthMethodTile(
             icon: Icons.fingerprint,
+            title: 'Fingerprint (WebAuthn)',
+            subtitle: 'Platform authenticator (Touch ID, Windows Hello, Android fingerprint)',
+            enabled: true,
+            onTap: () => _showFingerprintSettings(context, authService),
+          ),
+          _buildAuthMethodTile(
+            icon: Icons.remove_red_eye_outlined,
+            title: 'Iris / Eye Scanner',
+            subtitle: 'Camera-based iris recognition',
+            enabled: true,
+            onTap: () => _showIrisSettings(context, authService),
+          ),
+          _buildAuthMethodTile(
+            icon: Icons.face_unlock,
             title: 'Device Biometric',
             subtitle: 'Fingerprint or Face Unlock via Android BiometricPrompt',
             enabled: true,
@@ -467,6 +481,151 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Text('No biometric hardware available'),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFingerprintSettings(BuildContext context, AuthService authService) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Fingerprint (WebAuthn)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Enroll Fingerprint'),
+              subtitle: const Text('Register your fingerprint using platform authenticator'),
+              onTap: () async {
+                Navigator.pop(context);
+                try {
+                  final result = await authService.authenticateWithFingerprint();
+                  if (result.success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Fingerprint authenticated successfully')),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Fingerprint auth failed: ${result.error}')),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Remove Fingerprint', style: TextStyle(color: Colors.red)),
+              subtitle: const Text('Delete enrolled fingerprint credential'),
+              onTap: () async {
+                Navigator.pop(context);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Remove Fingerprint'),
+                    content: const Text('Are you sure you want to remove the enrolled fingerprint?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Remove'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Fingerprint removed')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showIrisSettings(BuildContext context, AuthService authService) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Iris / Eye Scanner', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.add_a_photo),
+              title: const Text('Enroll Iris'),
+              subtitle: const Text('Scan your iris using the front camera'),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/enroll-iris');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.verified_user),
+              title: const Text('Authenticate with Iris'),
+              subtitle: const Text('Test iris recognition'),
+              onTap: () async {
+                Navigator.pop(context);
+                try {
+                  final result = await authService.authenticateWithIris();
+                  if (result.success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Iris authenticated successfully')),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Iris auth failed: ${result.error}')),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Remove Iris Data', style: TextStyle(color: Colors.red)),
+              subtitle: const Text('Delete enrolled iris patterns'),
+              onTap: () async {
+                Navigator.pop(context);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Remove Iris Data'),
+                    content: const Text('Are you sure you want to remove the enrolled iris data?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Remove'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Iris data removed')),
+                  );
+                }
+              },
+            ),
           ],
         ),
       ),

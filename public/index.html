@@ -5,23 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="AURA is a cinematic, voice-first personal AI assistant."
+      content="AURA OS // AI Command System. Sophisticated private AI operating system."
     />
-    <meta name="theme-color" content="#00030a" />
-    <title>AURA // Neural Assistant</title>
+    <meta name="theme-color" content="#031417" />
+    <title>AURA OS // AI Command System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-<script defer src="/auth-enhanced.js"></script>
-    <script defer src="/auth-enhanced.js"></script>
     <script defer src="/liveness-detector.js"></script>
+    <script defer src="/auth-enhanced.js"></script>
+    <script defer src="/local-ai.js"></script>
   </head>
-  <body>
+  <body class="aura-command-system">
+    <!-- Holographic Canvas System Layers -->
     <canvas id="background-depth-layer-1" aria-hidden="true"></canvas>
     <canvas id="background-depth-layer-2" aria-hidden="true"></canvas>
     <canvas id="background-depth-layer-3" aria-hidden="true"></canvas>
@@ -29,57 +30,87 @@
     <canvas id="neural-canvas" aria-hidden="true"></canvas>
     <canvas id="grid-canvas" aria-hidden="true"></canvas>
     <canvas id="radar-sweep" aria-hidden="true"></canvas>
+    
+    <!-- Atmospheric Overlays -->
     <div class="scanline" aria-hidden="true"></div>
     <div class="glitch-overlay" aria-hidden="true"></div>
     <div class="bloom-overlay" aria-hidden="true"></div>
+    <div class="vignette-overlay" aria-hidden="true"></div>
 
+    <!-- Biometric Authentication Overlay / Face ID / PIN Sentinel -->
     <div class="face-auth-overlay" id="face-auth-overlay" role="dialog" aria-modal="true" aria-labelledby="face-auth-title" hidden>
-      <div class="face-auth-container">
+      <div class="face-auth-backdrop"></div>
+      <div class="face-auth-container hud-cyber-box">
+        <div class="cyber-bracket top-left"></div>
+        <div class="cyber-bracket top-right"></div>
+        <div class="cyber-bracket bottom-left"></div>
+        <div class="cyber-bracket bottom-right"></div>
+
         <div class="face-auth-header">
           <div class="face-auth-brand hud-glow">
             <span class="face-auth-ring inner-ring"></span>
             <span class="face-auth-ring middle-ring"></span>
             <span class="face-auth-ring outer-ring"></span>
           </div>
-          <h1 id="face-auth-title" class="face-auth-title">AURA // FACE ID</h1>
-          <p class="face-auth-subtitle">Biometric authentication required</p>
+          <div class="face-auth-title-wrap">
+            <span class="hud-tag">SECURITY PROTOCOL // ZERO TRUST</span>
+            <h1 id="face-auth-title" class="face-auth-title">AURA OS // BIOMETRIC SENTINEL</h1>
+            <p class="face-auth-subtitle">Neural biometric signature or passcode authentication required</p>
+          </div>
         </div>
 
         <div class="face-auth-video-wrap">
           <video id="face-auth-video" autoplay muted playsinline aria-hidden="true"></video>
           <canvas id="face-auth-canvas" aria-hidden="true"></canvas>
           <div class="face-auth-scanline" aria-hidden="true"></div>
+          <div class="face-auth-targeting" aria-hidden="true">
+            <div class="target-circle"></div>
+            <div class="target-cross-h"></div>
+            <div class="target-cross-v"></div>
+          </div>
           <div class="face-auth-corners" aria-hidden="true">
             <span class="corner tl"></span>
             <span class="corner tr"></span>
             <span class="corner bl"></span>
             <span class="corner br"></span>
           </div>
+          <div class="scanner-laser"></div>
         </div>
 
-        <div class="face-auth-status" id="face-auth-status">
+        <div class="face-auth-status" id="face-auth-panel">
           <div class="face-auth-scanner hud-scanner" aria-hidden="true">
             <span class="scanner-line"></span>
           </div>
-          <p id="face-auth-message" class="face-auth-message">Initializing face detection...</p>
-          <div class="face-auth-progress hud-progress" aria-hidden="true"><span style="width: 0%"></span></div>
-          <p id="face-auth-confidence" class="face-auth-confidence hud-text-muted" hidden>Match confidence: <strong>--%</strong></p>
+          <div class="face-auth-status-info">
+            <span class="status-icon-dot"></span>
+            <p id="face-auth-message" class="face-auth-message">Initializing biometric neural analyzer...</p>
+          </div>
+          <div class="face-auth-progress hud-progress" id="face-auth-progress" aria-hidden="true">
+            <span style="width: 0%"></span>
+          </div>
+          <div class="face-auth-stats-row">
+            <p id="face-auth-confidence" class="face-auth-confidence hud-text-muted" hidden>Match confidence: <strong>--%</strong></p>
+            <span class="biometric-chip">AES-256-GCM ENCRYPTED</span>
+          </div>
         </div>
 
         <div class="face-auth-actions">
           <button type="button" id="face-auth-enroll" class="face-auth-btn secondary" hidden>
             <span class="btn-icon">+</span>
-            Enroll Face
+            <span>Enroll Face Signature</span>
           </button>
           <button type="button" id="face-auth-skip" class="face-auth-btn ghost">
             <span class="btn-icon">⌘</span>
-            Use Passcode
+            <span>Use Passcode</span>
           </button>
         </div>
 
-        <!-- PIN Entry UI -->
+        <!-- PIN Entry Matrix UI -->
         <div id="face-auth-pin" class="face-auth-pin" hidden>
-          <p class="face-auth-pin-label">Enter PIN</p>
+          <div class="pin-header-bar">
+            <span class="pin-icon">🔒</span>
+            <p class="face-auth-pin-label">ENTER ACCESS PASSCODE</p>
+          </div>
           <div class="face-auth-pin-inputs" aria-label="PIN entry">
             <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 1">
             <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 2">
@@ -91,140 +122,212 @@
             <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]*" aria-label="PIN digit 8">
           </div>
           <p id="face-auth-pin-error" class="face-auth-pin-error hud-text-muted" hidden></p>
-          <button type="button" id="face-auth-pin-submit" class="face-auth-btn primary" hidden>Submit</button>
-          <button type="button" id="face-auth-pin-cancel" class="face-auth-btn ghost" hidden>Back to Face ID</button>
+          <div class="pin-actions-row">
+            <button type="button" id="face-auth-pin-submit" class="face-auth-btn primary" hidden>Authenticate</button>
+            <button type="button" id="face-auth-pin-cancel" class="face-auth-btn ghost" hidden>Back to Face ID</button>
+          </div>
         </div>
 
         <div class="face-auth-footer">
-          <span class="face-auth-secure">🔒 Biometric data stays local</span>
-          <span id="face-auth-enrolled" class="face-auth-enrolled hud-text-muted" hidden>Face enrolled</span>
+          <span class="face-auth-secure">
+            <i class="sec-dot"></i> Local browser security enclave active
+          </span>
+          <span id="face-auth-enrolled" class="face-auth-enrolled hud-badge" hidden>FACE REGISTERED</span>
         </div>
       </div>
     </div>
 
+    <!-- Main Command Center Shell -->
     <div class="app-shell">
+      <!-- Top Command Center HUD Bar -->
       <header class="topbar hud-panel">
-        <a class="brand" href="#" aria-label="AURA home">
-          <span class="brand-mark hud-glow" aria-hidden="true">
-            <span class="hud-ring inner-ring"></span>
-            <span class="hud-ring middle-ring"></span>
-            <span class="hud-ring outer-ring"></span>
-          </span>
-          <span>
-            <strong>AURA</strong>
-            <small>NEURAL OPERATING SYSTEM</small>
-          </span>
-        </a>
-
-        <div class="topbar-center">
-          <span class="status-dot hud-active"></span>
-          <span id="connection-label" class="hud-accent">INITIALIZING</span>
-          <span class="separator">/</span>
-          <span id="mode-label" class="hud-text-muted">LOCAL CORE</span>
-          <span class="hud-indicator" id="ai-indicator"></span>
+        <div class="topbar-left">
+          <a class="brand" href="#" aria-label="AURA OS Home">
+            <span class="brand-mark hud-glow" aria-hidden="true">
+              <span class="hud-ring inner-ring"></span>
+              <span class="hud-ring middle-ring"></span>
+              <span class="hud-ring outer-ring"></span>
+              <span class="brand-core-dot"></span>
+            </span>
+            <div class="brand-text">
+              <strong class="brand-title">AURA OS</strong>
+              <small class="brand-sub">AI COMMAND SYSTEM</small>
+            </div>
+          </a>
         </div>
 
-        <div class="clock-block">
-          <strong id="clock">00:00:00</strong>
-          <small id="date">FRI / 12 JUN</small>
+        <div class="topbar-center">
+          <div class="terminal-badge">
+            <span class="terminal-spark">✦</span>
+            <span class="terminal-text">TERMINAL ACTIVATED</span>
+          </div>
+          <div class="terminal-subline">
+            <span class="status-dot hud-active" aria-hidden="true"></span>
+            <span id="connection-label" class="hud-accent">AI CONNECTED</span>
+            <span class="separator">/</span>
+            <span id="mode-label" class="hud-text-muted">LOCAL CORE</span>
+            <span class="hud-indicator" id="ai-indicator"></span>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Audio SFX Toggle & Utility Bar -->
+          <button type="button" id="sfx-toggle" class="topbar-util-btn active" title="Toggle UI Sound Effects" aria-label="Toggle UI Sound Effects">
+            <span class="util-icon">🔊</span>
+            <span class="util-label">SFX</span>
+          </button>
+          
+          <button type="button" id="fullscreen-toggle" class="topbar-util-btn" title="Toggle Fullscreen HUD" aria-label="Toggle Fullscreen HUD">
+            <span class="util-icon">⛶</span>
+          </button>
+
+          <div class="clock-block">
+            <div class="clock-header">
+              <span class="clock-live-dot"></span>
+              <span class="stardate-label" id="stardate-val">SD 2026.232</span>
+            </div>
+            <strong id="clock">00:00:00</strong>
+            <div class="date-row">
+              <small id="date">FRI / 12 JUN</small>
+              <small class="utc-clock" id="utc-clock">UTC 00:00</small>
+            </div>
+          </div>
         </div>
       </header>
 
+      <!-- Main Three-Column Command-Center Layout -->
       <main class="dashboard">
+        <!-- LEFT COLUMN: System Status, Network, Quick Commands & Mission Queue -->
         <aside class="left-rail panel-column">
-          <section class="hud-card system-card">
+          <!-- Compact Technical System Status Panel -->
+          <section class="hud-card system-card compact-tech-panel">
             <div class="section-heading hud-section-header">
-              <span>SYSTEM STATUS</span>
-              <span class="mini-state hud-mint">OPTIMAL</span>
+              <span class="heading-text"><i class="heading-icon">◈</i> SYSTEM STATUS</span>
+              <span class="mini-state hud-crimson">ONLINE</span>
             </div>
 
-            <div class="system-row">
-              <div class="metric-ring hud-ring-animated" style="--value: 86">
-                <span>86<span>%</span></span>
-                <div class="ring-digits" aria-hidden="true">
-                  <span class="digit">8</span>
-                  <span class="digit">6</span>
+            <div class="compact-metrics-matrix">
+              <!-- Neural Core Metric -->
+              <div class="tech-metric-row">
+                <div class="tech-metric-head">
+                  <span class="tech-label">NEURAL CORE</span>
+                  <strong class="tech-value" id="neural-load-text">86<small>%</small></strong>
+                </div>
+                <div class="tech-progress-track">
+                  <span class="tech-progress-bar cyan-bar" style="width: 86%"></span>
                 </div>
               </div>
-              <div class="metric-copy">
-                <strong>NEURAL CORE</strong>
-                <small>Processing capacity</small>
-                <div class="micro-bars hud-bars" aria-hidden="true">
-                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+
+              <!-- CPU Metric -->
+              <div class="tech-metric-row">
+                <div class="tech-metric-head">
+                  <span class="tech-label">CPU USAGE</span>
+                  <strong class="tech-value" id="diag-cpu">24<small>%</small></strong>
+                </div>
+                <div class="tech-progress-track">
+                  <span class="tech-progress-bar cyan-bar" style="width: 24%"></span>
+                </div>
+              </div>
+
+              <!-- RAM Metric -->
+              <div class="tech-metric-row">
+                <div class="tech-metric-head">
+                  <span class="tech-label">RAM ALLOCATION</span>
+                  <strong class="tech-value" id="diag-ram">38<small>%</small></strong>
+                </div>
+                <div class="tech-progress-track">
+                  <span class="tech-progress-bar amber-bar" style="width: 38%"></span>
+                </div>
+              </div>
+
+              <!-- GPU / Tensor Core Metric -->
+              <div class="tech-metric-row">
+                <div class="tech-metric-head">
+                  <span class="tech-label">GPU TENSOR</span>
+                  <strong class="tech-value" id="diag-gpu">48<small>%</small></strong>
+                </div>
+                <div class="tech-progress-track">
+                  <span class="tech-progress-bar cyan-bar" style="width: 48%"></span>
+                </div>
+              </div>
+
+              <!-- Disk I/O Metric -->
+              <div class="tech-metric-row">
+                <div class="tech-metric-head">
+                  <span class="tech-label">DISK I/O</span>
+                  <strong class="tech-value" id="diag-disk">12<small>%</small></strong>
+                </div>
+                <div class="tech-progress-track">
+                  <span class="tech-progress-bar teal-bar" style="width: 12%"></span>
                 </div>
               </div>
             </div>
 
-            <div class="telemetry hud-telemetry">
-              <div>
-                <span>LATENCY</span>
-                <strong id="latency-value">12<small>ms</small></strong>
+            <!-- Compact Telemetry Row -->
+            <div class="telemetry hud-telemetry compact-telem-grid">
+              <div class="telemetry-box">
+                <span class="telem-label">LATENCY</span>
+                <strong id="latency-value" class="telem-val">12<small>ms</small></strong>
               </div>
-              <div>
-                <span>MEMORY</span>
-                <strong id="memory-count">0<small>items</small></strong>
+              <div class="telemetry-box">
+                <span class="telem-label">MEMORY</span>
+                <strong id="memory-count" class="telem-val">0<small>items</small></strong>
               </div>
-              <div>
-                <span>UPTIME</span>
-                <strong id="uptime">00:00</strong>
+              <div class="telemetry-box">
+                <span class="telem-label">UPTIME</span>
+                <strong id="uptime" class="telem-val">00:00</strong>
               </div>
             </div>
           </section>
 
+          <!-- 7. Compact Network Visualizer: NETWORK — SECURE -->
           <section class="hud-card hud-network-card">
             <div class="section-heading hud-section-header">
-              <span>NETWORK</span>
+              <span class="heading-text"><i class="heading-icon">∿</i> NETWORK — SECURE</span>
               <span class="hud-badge" id="network-status">ONLINE</span>
             </div>
             <div class="network-visualizer" aria-hidden="true">
-              <canvas id="network-graph" width="200" height="120"></canvas>
+              <canvas id="network-graph" width="280" height="90"></canvas>
             </div>
-            <div class="network-stats">
-              <div><span>PING</span><strong id="ping-value">--<small>ms</small></strong></div>
-              <div><span>THROUGHPUT</span><strong id="throughput-value">--<small>Kb/s</small></strong></div>
-            </div>
-          </section>
-
-          <section class="hud-card diagnostics-card">
-            <div class="section-heading hud-section-header">
-              <span>DIAGNOSTICS</span>
-              <span>03</span>
-            </div>
-            <div class="diagnostic-grid">
-              <div class="diag-item">
-                <span class="diag-label">CPU</span>
-                <div class="diag-value hud-cyan">--<span>%</span></div>
+            <div class="network-stats-grid">
+              <div class="net-stat-box">
+                <span class="stat-label">ACTIVITY</span>
+                <strong class="stat-val text-cyan">ACTIVE</strong>
               </div>
-              <div class="diag-item">
-                <span class="diag-label">GPU</span>
-                <div class="diag-value hud-cyan">--<span>%</span></div>
+              <div class="net-stat-box">
+                <span class="stat-label">THROUGHPUT</span>
+                <strong id="throughput-value" class="stat-val">2.4<small>Mb/s</small></strong>
               </div>
-              <div class="diag-item">
-                <span class="diag-label">RAM</span>
-                <div class="diag-value hud-cyan">--<span>%</span></div>
+              <div class="net-stat-box">
+                <span class="stat-label">STABILITY</span>
+                <strong id="ping-value" class="stat-val text-gold">99.9%<small>(14ms)</small></strong>
               </div>
-              <div class="diag-item">
-                <span class="diag-label">DISK</span>
-                <div class="diag-value hud-cyan">--<span>%</span></div>
+              <div class="net-stat-box">
+                <span class="stat-label">SECURITY</span>
+                <strong class="stat-val text-cyan">TLS 1.3</strong>
               </div>
             </div>
           </section>
 
-          <section class="hud-card">
+          <!-- 8. Technical Quick Commands List -->
+          <section class="hud-card quick-commands-card">
             <div class="section-heading hud-section-header">
-              <span>QUICK COMMANDS</span>
-              <span>⌘ K</span>
+              <span class="heading-text"><i class="heading-icon">⌘</i> QUICK COMMANDS</span>
+              <span class="key-shortcut">⌘ K</span>
             </div>
             <div class="quick-list">
+              <!-- 1. System Report -->
               <button class="quick-command hud-command" data-command="Give me a system status report">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 17V7m5 10V11m5 6V4m5 13V9" />
                   </svg>
                 </span>
-                <span><strong>System report</strong><small>Health and diagnostics</small></span>
+                <span class="command-text-wrap"><strong>System Report</strong><small>Health & diagnostic scan</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
+
+              <!-- 2. Time Check -->
               <button class="quick-command hud-command" data-command="What time is it?">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -232,9 +335,11 @@
                     <path d="M12 7v5l3 2" />
                   </svg>
                 </span>
-                <span><strong>Time check</strong><small>Local time and date</small></span>
+                <span class="command-text-wrap"><strong>Time Check</strong><small>Universal & stardate time</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
+
+              <!-- 3. Daily Brief -->
               <button class="quick-command hud-command" data-command="/brief">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -242,19 +347,23 @@
                     <path d="M8 3v4M16 3v4M4 9h16M8 13h3M8 16h6" />
                   </svg>
                 </span>
-                <span><strong>Daily brief</strong><small>Tasks, reminders, timer</small></span>
+                <span class="command-text-wrap"><strong>Daily Brief</strong><small>Missions, weather, alerts</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
-              <button class="quick-command hud-command" data-command="World news">
+
+              <!-- 4. Focus Mode -->
+              <button class="quick-command hud-command" data-command="/focus">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 4h11a3 3 0 0 1 3 3v13H7a2 2 0 0 1-2-2V4Z" />
-                    <path d="M8 8h7M8 12h8M8 16h5" />
+                    <circle cx="12" cy="12" r="7" />
+                    <circle cx="12" cy="12" r="2" />
                   </svg>
                 </span>
-                <span><strong>World news</strong><small>Latest headlines</small></span>
+                <span class="command-text-wrap"><strong>Focus Mode</strong><small>Engage 25m focus timer</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
+
+              <!-- 5. Task Queue -->
               <button class="quick-command hud-command" data-command="/tasks">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -262,19 +371,11 @@
                     <path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2" />
                   </svg>
                 </span>
-                <span><strong>Task queue</strong><small>Open local tasks</small></span>
+                <span class="command-text-wrap"><strong>Task Queue</strong><small>Review mission pipeline</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
-              <button class="quick-command hud-command" data-command="/reminders">
-                <span class="quick-icon hud-icon">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" />
-                    <path d="M10 21h4" />
-                  </svg>
-                </span>
-                <span><strong>Reminders</strong><small>Upcoming alerts</small></span>
-                <span class="arrow hud-arrow">↗</span>
-              </button>
+
+              <!-- 6. Local Data -->
               <button class="quick-command hud-command" data-command="What do you remember about me?">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -282,25 +383,28 @@
                     <path d="M12 5v14" />
                   </svg>
                 </span>
-                <span><strong>Recall memory</strong><small>Review saved context</small></span>
+                <span class="command-text-wrap"><strong>Local Data</strong><small>Saved neural memory vault</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
-              <button class="quick-command hud-command" data-command="/help">
+
+              <!-- 7. Email Summary -->
+              <button class="quick-command hud-command" data-command="Summarize recent unread email briefs">
                 <span class="quick-icon hud-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="12" r="8" />
-                    <path d="M9.8 9a2.3 2.3 0 0 1 4.4 1c0 2-2.2 2-2.2 4M12 17h.01" />
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                   </svg>
                 </span>
-                <span><strong>Command guide</strong><small>View capabilities</small></span>
+                <span class="command-text-wrap"><strong>Email Summary</strong><small>Digest priority inbox messages</small></span>
                 <span class="arrow hud-arrow">↗</span>
               </button>
             </div>
           </section>
 
+          <!-- 9. Mission Queue -->
           <section class="hud-card task-card">
             <div class="section-heading hud-section-header">
-              <span>MISSION QUEUE</span>
+              <span class="heading-text"><i class="heading-icon">❖</i> MISSION QUEUE</span>
               <span id="task-count" class="hud-badge-small">0 OPEN</span>
             </div>
             <div class="queue-list" id="task-list" aria-live="polite">
@@ -308,7 +412,8 @@
             </div>
           </section>
 
-          <section class="hud-card hud-security-card" id="security-card" role="button" tabindex="0" aria-label="Security settings">
+          <!-- Sentinel Security Status -->
+          <section class="hud-card hud-security-card" id="security-card" role="button" tabindex="0" aria-label="Security settings and Biometric authentication">
             <div class="security-header">
               <div class="shield-icon hud-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
@@ -316,8 +421,8 @@
                   <path d="m9 12 2 2 4-4" />
                 </svg>
               </div>
-              <div>
-                <span>SECURITY PROTOCOL</span>
+              <div class="security-title-wrap">
+                <span>SENTINEL SECURITY</span>
                 <strong>ENCRYPTION ACTIVE</strong>
               </div>
               <span class="live-pip hud-active"></span>
@@ -325,101 +430,191 @@
             <div class="security-status">
               <div class="status-indicator">
                 <span class="status-label">FIREWALL</span>
-                <span class="status-value hud-mint">SECURE</span>
+                <span class="status-value hud-crimson">SECURE</span>
               </div>
               <div class="status-indicator">
-                <span class="status-label">ENCRYPTION</span>
-                <span class="status-value hud-mint">AES-256</span>
+                <span class="status-label">CIPHER</span>
+                <span class="status-value hud-crimson">AES-256</span>
               </div>
               <div class="status-indicator">
-                <span class="status-label">FACE ID</span>
-                <span class="status-value" id="face-auth-status">PASSCODE ONLY</span>
+                <span class="status-label">BIOMETRIC</span>
+                <span class="status-value" id="face-auth-status">STANDBY</span>
               </div>
             </div>
           </section>
         </aside>
 
+        <!-- CENTER COLUMN: VISUAL FOCAL POINT & NEURAL CORE -->
         <section class="core-stage">
-          <div class="core-copy">
-            <span class="eyebrow hud-eyebrow">AURA CORE // ONLINE</span>
-            <h1 id="greeting">Good evening.</h1>
-            <p id="assistant-status">All systems are operational. How can I assist?</p>
+          <!-- Background Holographic Cognitive Brain Canvas behind central focal point -->
+          <div class="cognitive-brain-container" aria-hidden="true">
+            <canvas id="cognitive-brain-canvas"></canvas>
           </div>
 
+          <div class="core-copy">
+            <div class="eyebrow-container">
+              <span class="eyebrow hud-eyebrow"><i class="radar-dot"></i> AURA CORE // COGNITIVE NEXUS</span>
+            </div>
+            <h1 id="greeting">Good evening.</h1>
+            <div class="center-subtitles">
+              <p class="lead-status">All systems are operational.</p>
+              <p id="assistant-status">How can I assist?</p>
+            </div>
+          </div>
+
+          <!-- Central Living AURA Neural Core (Multi-layered Living Process Engine) -->
           <div class="orb-wrap hud-orb" id="orb-wrap">
-            <div class="reactor-layer reactor-core"></div>
-            <div class="reactor-layer reactor-middle">
-              <div class="reactor-dots">
-                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-              </div>
-            </div>
-            <div class="reactor-layer reactor-outer">
-              <div class="reactor-grid" aria-hidden="true"></div>
-            </div>
-            <div class="orbit orbit-one"><i></i><i></i></div>
-            <div class="orbit orbit-two"><i></i></div>
-            <div class="orbit orbit-three"></div>
-            <button class="core-button hud-button" id="core-button" aria-label="Start voice command">
-              <span class="core-glass">
-                <span class="core-light"></span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
-                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" />
+            <div class="neural-core-system">
+              <!-- Layer 1: Outer Rotating Ring with Calibrations -->
+              <div class="core-layer layer-outer-calibrated">
+                <svg class="calibration-ring-svg" viewBox="0 0 320 320" aria-hidden="true">
+                  <circle cx="160" cy="160" r="150" class="ring-track" />
+                  <circle cx="160" cy="160" r="150" class="ring-ticks" stroke-dasharray="2 10" />
                 </svg>
-              </span>
-            </button>
+              </div>
+
+              <!-- Layer 2: Technical Segmented Ring -->
+              <div class="core-layer layer-segmented">
+                <div class="segmented-ticks">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+
+              <!-- Layer 3: Dashed Orbital Ring with Signal Markers -->
+              <div class="core-layer layer-dashed-orbital">
+                <div class="orbital-tracer tracer-1"></div>
+                <div class="orbital-tracer tracer-2"></div>
+              </div>
+
+              <!-- Layer 4: Neural Synaptic Network Brain Layer -->
+              <div class="core-layer layer-synaptic-lattice">
+                <canvas id="neural-core-synapse-canvas" width="260" height="260"></canvas>
+              </div>
+
+              <!-- Layer 5: Concentric Gyroscopic Rings -->
+              <div class="core-layer layer-gyro-x"></div>
+              <div class="core-layer layer-gyro-y"></div>
+
+              <!-- Layer 6: Central AI Glow & Scanning Beam -->
+              <div class="core-layer layer-central-plasma"></div>
+              <div class="core-layer layer-scanner-beam"></div>
+
+              <!-- Layer 7 & 8: Central Core Interactive Button & AI Icon -->
+              <button class="core-button hud-button" id="core-button" aria-label="Engage voice neural interface">
+                <span class="core-glass">
+                  <span class="core-light"></span>
+                  <svg class="ai-head-icon" viewBox="0 0 64 64" aria-hidden="true">
+                    <defs>
+                      <radialGradient id="ai-core-glow" cx="50%" cy="36%" r="50%">
+                        <stop offset="0%" stop-color="#E6F5F1" stop-opacity="1" />
+                        <stop offset="42%" stop-color="#2EE6C5" stop-opacity="0.9" />
+                        <stop offset="100%" stop-color="#031417" stop-opacity="0" />
+                      </radialGradient>
+                      <filter id="ai-head-bloom" x="-45%" y="-45%" width="190%" height="190%">
+                        <feGaussianBlur stdDeviation="1.6" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    <path class="ai-head-aura" d="M18 51c-1.8-6.4-1.7-12 .4-16.9 2.2-5.3 6.6-8.8 12.4-10.4 7.7-2.1 15.6 1.8 18.4 8.8 2.1 5.2.8 11.4-3.4 15.3-3.2 3-7.8 4.4-13.7 4.4H18Z" />
+                    <path class="ai-head-outline" d="M18 51c-.5-3.8-.1-8.2 1.5-12.5 1.5-4.3 4.4-7.4 8.1-9.1 3.2-1.5 7.5-1.4 10.6.2 4.3 2.1 7.2 6.7 7.2 11.5 0 3.9-1.9 7.2-5 9.1-2.3 1.4-5 2-8.7 2H18Z" />
+                    <path class="ai-face-line" d="M39.7 32.9c2.7 2.1 4.3 5.2 4.1 8.4-.2 3-1.9 5.7-4.6 7.3" />
+                    <path class="ai-face-line" d="M42.7 40.9h-5.9l-2.2 3.1h-5" />
+                    <path class="ai-face-line" d="M35.5 34.7h-7.1l-3.9 4.2" />
+                    <path class="ai-face-line" d="M32.8 48.2h-6.7l-3.1-2.8" />
+                    <path class="ai-neural-path" d="M27 36.8 31.8 32l6.2 3.3 1.5 6.2-4.3 4.7-7.1-1.5-2-4.8 5.7-7.9" />
+                    <path class="ai-neural-path" d="M31.8 32v-5.8M38 35.3l4.6-4.2M39.5 41.5l5.1 1.3M35.2 46.2l1.1 5.5M28.1 44.7l-4.7 3.8M26.1 39.9l-5.4-.9" />
+                    <circle class="ai-core" cx="31.8" cy="32" r="3.8" />
+                    <circle class="ai-node" cx="38" cy="35.3" r="1.35" />
+                    <circle class="ai-node" cx="39.5" cy="41.5" r="1.25" />
+                    <circle class="ai-node" cx="35.2" cy="46.2" r="1.25" />
+                    <circle class="ai-node" cx="28.1" cy="44.7" r="1.2" />
+                    <circle class="ai-node" cx="26.1" cy="39.9" r="1.2" />
+                    <circle class="ai-node" cx="31.8" cy="26.2" r="1.2" />
+                    <path class="ai-scanline" d="M19 52h26" />
+                  </svg>
+                </span>
+              </button>
+            </div>
+
             <div class="orb-label">
               <span id="orb-state">SAY "AURA"</span>
               <div class="waveform hud-waveform" aria-hidden="true">
-                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
               </div>
             </div>
             <div class="targeting-reticle" aria-hidden="true"></div>
           </div>
 
-          <div class="conversation hud-conversation" id="conversation" aria-live="polite">
-            <article class="message assistant-message hud-message">
-              <div class="message-meta">
-                <span class="message-avatar hud-avatar">A</span>
-                <span>AURA</span>
-                <time>NOW</time>
+          <!-- Neural Conversation Stream & Mission Terminal -->
+          <div class="conversation-wrapper">
+            <div class="conversation-terminal-bar">
+              <div class="terminal-dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
               </div>
-              <p>Interface synchronized. Say "Aura" to wake me, or use the command console.</p>
-            </article>
+              <span class="terminal-title">AURA // COGNITIVE STREAM</span>
+              <span class="terminal-status"><i class="rec-dot"></i> LIVE</span>
+            </div>
+            <div class="conversation hud-conversation" id="conversation" aria-live="polite">
+              <article class="message assistant-message hud-message">
+                <div class="message-meta">
+                  <span class="message-avatar hud-avatar">◈</span>
+                  <span class="message-sender">AURA OS</span>
+                  <time>NOW</time>
+                  <span class="message-tag">TRANSMISSION</span>
+                </div>
+                <div class="message-body">
+                  <p>Interface synchronized. Say "Aura" to wake me, or use the command console below.</p>
+                </div>
+              </article>
+            </div>
           </div>
 
+          <!-- Suggestion Matrix Chips -->
           <div class="suggestion-row hud-suggestions" id="suggestion-row">
-            <button data-command="/brief">Daily brief</button>
-            <button data-command="Give me a system status report">Run diagnostics</button>
-            <button data-command="/task Review tomorrow's priorities">Add a task</button>
-            <button data-command="/convert 10 miles to km">Convert units</button>
-            <button data-command="/roll 2d6">Roll dice</button>
+            <button data-command="/brief" class="suggestion-chip"><span class="chip-bracket">[</span> Daily Brief <span class="chip-bracket">]</span></button>
+            <button data-command="Give me a system status report" class="suggestion-chip"><span class="chip-bracket">[</span> Diagnostics <span class="chip-bracket">]</span></button>
+            <button data-command="/task Review security architecture" class="suggestion-chip"><span class="chip-bracket">[</span> Add Task <span class="chip-bracket">]</span></button>
+            <button data-command="World news" class="suggestion-chip"><span class="chip-bracket">[</span> World News <span class="chip-bracket">]</span></button>
+            <button data-command="/convert 10 miles to km" class="suggestion-chip"><span class="chip-bracket">[</span> Convert Units <span class="chip-bracket">]</span></button>
+            <button data-command="/roll 2d6" class="suggestion-chip"><span class="chip-bracket">[</span> Roll Dice <span class="chip-bracket">]</span></button>
           </div>
         </section>
 
+        <!-- RIGHT COLUMN: 10. Environment, 10. Weather, 11. Focus Timer, Reminders, Memory, AI Model -->
         <aside class="right-rail panel-column">
+          <!-- 10. Clean Right-Side Environmental Module -->
           <section class="hud-card environment-card">
             <div class="section-heading hud-section-header">
-              <span>ENVIRONMENT</span>
-              <span id="environment-location">LOCAL</span>
+              <span class="heading-text"><i class="heading-icon">◐</i> ENVIRONMENT</span>
+              <span class="location-badge" id="env-sync-badge">SYNCHRONIZED</span>
             </div>
-            <div class="environment-main">
-              <div class="environment-orb hud-orb-small" aria-hidden="true">
-                <span class="orb-core"></span>
-                <span class="orb-ring"></span>
-                <span class="orb-pulse"></span>
+            <div class="environment-metrics-grid">
+              <div class="env-metric-item">
+                <span class="env-meta-label">LOCAL TIME</span>
+                <strong id="environment-time" class="env-meta-val">20:42</strong>
               </div>
-              <div>
-                <strong id="environment-time">20:42</strong>
-                <span id="day-period">EVENING</span>
+              <div class="env-metric-item">
+                <span class="env-meta-label">CURRENT DATE</span>
+                <strong id="environment-date" class="env-meta-val">FRI / 12 JUN</strong>
+              </div>
+              <div class="env-metric-item">
+                <span class="env-meta-label">SYSTEM MODE</span>
+                <strong id="environment-mode" class="env-meta-val text-cyan">LOCAL CORE</strong>
+              </div>
+              <div class="env-metric-item">
+                <span class="env-meta-label">SYNCHRONIZATION</span>
+                <strong class="env-meta-val text-cyan">100% OPERATIONAL</strong>
               </div>
             </div>
-            <div class="environment-stats">
-              <div><span>DISPLAY</span><strong>ADAPTIVE</strong></div>
-              <div><span>VOICE</span><strong id="voice-support">CHECKING</strong></div>
-            </div>
+
+            <!-- Hands-Free Voice Control -->
             <div class="hands-free-control hud-control-group">
-              <div>
+              <div class="control-text">
                 <span>HANDS-FREE MODE</span>
                 <small>Continuously listen for "Aura"</small>
               </div>
@@ -434,72 +629,73 @@
                 <strong>ON</strong>
               </button>
             </div>
+
             <div class="language-control">
               <label for="language-select">RECOGNITION LANGUAGE</label>
-              <select id="language-select" aria-label="Speech recognition language">
-                <option value="auto">Browser default</option>
-                <option value="en-US">English (US)</option>
-                <option value="en-GB">English (UK)</option>
-                <option value="en-IN">English (India)</option>
-                <option value="ml-IN">Malayalam</option>
-                <option value="hi-IN">Hindi</option>
-                <option value="ta-IN">Tamil</option>
-                <option value="te-IN">Telugu</option>
-                <option value="kn-IN">Kannada</option>
-                <option value="bn-IN">Bengali</option>
-                <option value="mr-IN">Marathi</option>
-                <option value="gu-IN">Gujarati</option>
-                <option value="es-ES">Spanish</option>
-                <option value="fr-FR">French</option>
-                <option value="de-DE">German</option>
-                <option value="pt-BR">Portuguese (Brazil)</option>
-                <option value="ar-SA">Arabic</option>
-                <option value="zh-CN">Mandarin Chinese</option>
-                <option value="ja-JP">Japanese</option>
-                <option value="ko-KR">Korean</option>
-              </select>
+              <div class="custom-select-wrap">
+                <select id="language-select" aria-label="Speech recognition language">
+                  <option value="auto">Browser Default (Auto)</option>
+                  <option value="en-US">English (US)</option>
+                  <option value="en-GB">English (UK)</option>
+                  <option value="en-IN">English (India)</option>
+                  <option value="ml-IN">Malayalam (മലയാളം)</option>
+                  <option value="hi-IN">Hindi (हिन्दी)</option>
+                  <option value="ta-IN">Tamil (தமிழ்)</option>
+                  <option value="te-IN">Telugu (తెలుగు)</option>
+                  <option value="kn-IN">Kannada (ಕನ್ನಡ)</option>
+                  <option value="bn-IN">Bengali (বাংলা)</option>
+                  <option value="mr-IN">Marathi (मराठी)</option>
+                  <option value="gu-IN">Gujarati (ગુજરાતી)</option>
+                  <option value="es-ES">Spanish (Español)</option>
+                  <option value="fr-FR">French (Français)</option>
+                  <option value="de-DE">German (Deutsch)</option>
+                  <option value="pt-BR">Portuguese (Brasil)</option>
+                  <option value="ar-SA">Arabic (العربية)</option>
+                  <option value="zh-CN">Mandarin (中文)</option>
+                  <option value="ja-JP">Japanese (日本語)</option>
+                  <option value="ko-KR">Korean (한국어)</option>
+                </select>
+              </div>
             </div>
           </section>
 
+          <!-- 10. Separate Live Weather Module with Update Button -->
           <section class="hud-card weather-card">
             <div class="section-heading hud-section-header">
-              <span>WEATHER</span>
-              <span id="weather-location" class="hud-accent">--</span>
+              <span class="heading-text"><i class="heading-icon">☁</i> ATMOSPHERIC WEATHER</span>
+              <span id="weather-location" class="hud-accent">Alappuzha, IN</span>
             </div>
             <div class="weather-body" id="weather-body">
               <div class="weather-primary">
-                <span class="weather-temp hud-cyan-bright" id="weather-temp">--°</span>
-                <span class="weather-condition hud-mint" id="weather-condition">--</span>
+                <div class="temp-wrap">
+                  <span class="weather-temp hud-crimson-bright" id="weather-temp">28°</span>
+                </div>
+                <div class="condition-wrap">
+                  <span class="weather-condition hud-coral" id="weather-condition">Partly Cloudy</span>
+                </div>
               </div>
               <div class="weather-details">
-                <div><span>FEELS</span><strong id="weather-feels">--°</strong></div>
-                <div><span>HUMIDITY</span><strong id="weather-humidity">--%</strong></div>
-                <div><span>WIND</span><strong id="weather-wind">--</strong></div>
+                <div class="w-detail-box"><span>FEELS</span><strong id="weather-feels">31°</strong></div>
+                <div class="w-detail-box"><span>HUMIDITY</span><strong id="weather-humidity">78%</strong></div>
+                <div class="w-detail-box"><span>WIND</span><strong id="weather-wind">12 km/h</strong></div>
               </div>
               <div class="weather-city-input">
                 <input type="text" id="weather-city-input" placeholder="Search city..." maxlength="80" />
-                <button type="button" id="weather-search">SET</button>
+                <button type="button" id="weather-search" class="cyber-btn-small">UPDATE</button>
               </div>
             </div>
           </section>
 
-          <section class="hud-card reminder-card">
-            <div class="section-heading hud-section-header">
-              <span>REMINDERS</span>
-              <span id="reminder-count" class="hud-badge-small">0 ACTIVE</span>
-            </div>
-            <div class="reminder-list" id="reminder-list" aria-live="polite">
-              <div class="queue-empty">No scheduled reminders.</div>
-            </div>
-          </section>
-
+          <!-- 11. Compact Futuristic Focus Timer (Default 25:00) -->
           <section class="hud-card timer-card">
             <div class="section-heading hud-section-header">
-              <span>FOCUS TIMER</span>
+              <span class="heading-text"><i class="heading-icon">⏱</i> FOCUS TIMER</span>
               <span id="timer-phase" class="hud-badge">WORK</span>
             </div>
             <div class="timer-body">
-              <strong class="timer-time hud-cyan-bright" id="timer-time">25:00</strong>
+              <div class="timer-display-wrap">
+                <strong class="timer-time hud-crimson-bright" id="timer-time">25:00</strong>
+              </div>
               <div class="timer-progress hud-progress" id="timer-progress"><span style="width: 0%"></span></div>
               <div class="timer-controls">
                 <button type="button" id="timer-toggle" class="timer-btn primary">START</button>
@@ -512,21 +708,39 @@
             </div>
           </section>
 
+          <!-- Reminders -->
+          <section class="hud-card reminder-card">
+            <div class="section-heading hud-section-header">
+              <span class="heading-text"><i class="heading-icon">⚲</i> REMINDERS</span>
+              <span id="reminder-count" class="hud-badge-small">0 ACTIVE</span>
+            </div>
+            <div class="reminder-list" id="reminder-list" aria-live="polite">
+              <div class="queue-empty">No scheduled reminders.</div>
+            </div>
+          </section>
+
+          <!-- 12. Encrypted Local Data Module -->
           <section class="hud-card data-card">
             <div class="section-heading hud-section-header">
-              <span>LOCAL DATA</span>
-              <span>BROWSER</span>
+              <span class="heading-text"><i class="heading-icon">⌬</i> LOCAL DATA</span>
+              <span class="vault-badge">ENCRYPTED</span>
             </div>
-            <div class="data-actions">
+            <div class="data-manage-row">
+              <button type="button" id="manage-data-btn" class="manage-data-btn">
+                <span class="btn-icon">⚙</span> MANAGE
+              </button>
+              <span class="data-cipher-tag">AES-256-GCM</span>
+            </div>
+            <div class="data-actions" id="data-actions-panel">
               <button type="button" id="export-data" class="ghost-btn">EXPORT</button>
               <button type="button" id="import-data" class="ghost-btn">IMPORT</button>
-              <button type="button" id="clear-local-data" class="ghost-btn">RESET</button>
+              <button type="button" id="clear-local-data" class="ghost-btn danger">PURGE</button>
               <input id="import-file" type="file" accept="application/json" hidden />
             </div>
             <div class="memory-section" id="memory-section">
               <div class="memory-header">
-                <span>MEMORIES</span>
-                <span id="memory-count-label">0</span>
+                <span>SECURE MEMORIES</span>
+                <span id="memory-count-label" class="node-count-badge">0</span>
               </div>
               <div class="memory-list" id="memory-list">
                 <div class="queue-empty">No stored memories.</div>
@@ -534,130 +748,199 @@
             </div>
           </section>
 
+          <!-- 13. Active AI Model Status Panel -->
+          <section class="hud-card model-card">
+            <div class="section-heading hud-section-header">
+              <span class="heading-text"><i class="heading-icon">⎔</i> ACTIVE AI MODEL</span>
+              <span id="model-status" class="hud-badge">ONLINE</span>
+            </div>
+            <div class="model-status-hero">
+              <strong id="active-model-title" class="active-model-title">AURA Neural Prime</strong>
+              <span id="model-provider" class="provider-pill">PROVIDER: LOCAL</span>
+            </div>
+            <div class="model-selector">
+              <label for="model-select">SWITCH NEURAL CORE</label>
+              <div class="custom-select-wrap">
+                <select id="model-select" aria-label="Select AI model">
+                  <optgroup label="Free Models">
+                    <option value="nemotron-3-ultra">Nemotron 3 Ultra (NVIDIA)</option>
+                    <option value="nemotron-3-super">Nemotron 3 Super (NVIDIA)</option>
+                    <option value="nemotron-3-nano">Nemotron 3 Nano (NVIDIA)</option>
+                    <option value="gemma-4-31b">Gemma 4 31B (Google)</option>
+                    <option value="openrouter-free">OpenRouter Free</option>
+                  </optgroup>
+                  <optgroup label="Premium Models">
+                    <option value="gpt-4o">GPT-4o (OpenAI)</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini (OpenAI)</option>
+                    <option value="claude-3.5-sonnet">Claude 3.5 Sonnet (Anthropic)</option>
+                    <option value="claude-3-haiku">Claude 3 Haiku (Anthropic)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Google)</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Google)</option>
+                  </optgroup>
+                  <optgroup label="Local Models (Offline)">
+                    <option value="phi-3-mini">Phi-3 Mini (Microsoft, 2.4 GB)</option>
+                    <option value="qwen2-1.5b">Qwen2 1.5B (Alibaba, 1.2 GB)</option>
+                    <option value="smollm-1.7b">SmolLM 1.7B (HuggingFace, 1.1 GB)</option>
+                    <option value="llama-3.2-1b">Llama 3.2 1B (Meta, 1.3 GB)</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="model-meta-row">
+                <span id="model-type" class="free-badge">LOCAL CORE</span>
+                <span class="model-quant">QUANT: Q4_K_M</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 14. Activity Stream (Real Application Events) -->
           <section class="hud-card activity-card">
             <div class="section-heading hud-section-header">
-              <span>ACTIVITY STREAM</span>
+              <span class="heading-text"><i class="heading-icon">⎇</i> ACTIVITY STREAM</span>
               <button id="clear-activity" class="hud-clear-btn">CLEAR</button>
             </div>
             <div class="activity-list" id="activity-list">
               <div class="activity-item hud-activity">
-                <span class="activity-line"></span>
                 <span class="activity-node hud-node-active"></span>
-                <div><strong>Neural core initialized</strong><small>Just now</small></div>
+                <div><strong>AURA OS initialized</strong><small>Just now</small></div>
               </div>
               <div class="activity-item hud-activity">
-                <span class="activity-line"></span>
+                <span class="activity-node hud-node-active"></span>
+                <div><strong>Neural core activated</strong><small>Just now</small></div>
+              </div>
+              <div class="activity-item hud-activity">
+                <span class="activity-node hud-node-active"></span>
+                <div><strong>Brain network connected</strong><small>Just now</small></div>
+              </div>
+              <div class="activity-item hud-activity">
                 <span class="activity-node hud-node-active"></span>
                 <div><strong>Local memory mounted</strong><small>Just now</small></div>
               </div>
               <div class="activity-item hud-activity">
-                <span class="activity-node muted"></span>
-                <div><strong>Awaiting your directive</strong><small>Standby</small></div>
+                <span class="activity-node hud-node-active"></span>
+                <div><strong>Terminal synchronized</strong><small>Just now</small></div>
               </div>
             </div>
           </section>
 
+          <!-- Interface Modes -->
           <section class="hud-card modes-card">
             <div class="section-heading hud-section-header">
-              <span>INTERFACE MODES</span>
+              <span class="heading-text"><i class="heading-icon">⧉</i> INTERFACE MODES</span>
               <span>03</span>
             </div>
-            <button class="mode-toggle active" data-mode="focus">
-              <span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="7" />
-                  <circle cx="12" cy="12" r="2" />
-                </svg>
-              </span>
-              <span><strong>Focus</strong><small>Standard assistance</small></span>
-              <i class="mode-indicator"></i>
-            </button>
-            <button class="mode-toggle" data-mode="stealth">
-              <span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 12s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z" />
-                  <circle cx="12" cy="12" r="2" />
-                </svg>
-              </span>
-              <span><strong>Stealth</strong><small>Muted responses</small></span>
-              <i class="mode-indicator"></i>
-            </button>
-            <button class="mode-toggle" data-mode="cinema">
-              <span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 7h16v10H4zM8 7l2-3m4 3 2-3" />
-                </svg>
-              </span>
-              <span><strong>Cinema</strong><small>Immersive display</small></span>
-              <i class="mode-indicator"></i>
-            </button>
+            <div class="modes-grid">
+              <button class="mode-toggle active" data-mode="focus">
+                <span class="mode-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="7" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                </span>
+                <span class="mode-text"><strong>Focus</strong><small>Standard</small></span>
+                <i class="mode-indicator"></i>
+              </button>
+              <button class="mode-toggle" data-mode="stealth">
+                <span class="mode-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 12s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                </span>
+                <span class="mode-text"><strong>Stealth</strong><small>Muted</small></span>
+                <i class="mode-indicator"></i>
+              </button>
+              <button class="mode-toggle" data-mode="cinema">
+                <span class="mode-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h16v10H4zM8 7l2-3m4 3 2-3" />
+                  </svg>
+                </span>
+                <span class="mode-text"><strong>Cinema</strong><small>Immersive</small></span>
+                <i class="mode-indicator"></i>
+              </button>
+            </div>
           </section>
         </aside>
       </main>
 
+      <!-- 15. Large Floating Bottom Tactical Command Dock -->
       <footer class="command-dock hud-dock">
         <div class="dock-corner left"></div>
-        <form id="command-form">
-          <button type="button" class="dock-button" id="voice-button" aria-label="Voice input">
+        <form id="command-form" class="cyber-dock-form">
+          <button type="button" class="dock-button voice-dock-button" id="voice-button" aria-label="Toggle voice input">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
               <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
             </svg>
+            <span class="voice-pulse-ring"></span>
           </button>
+          
           <div class="command-input-wrap">
             <span class="prompt-mark">&gt;_</span>
             <input
               id="command-input"
               type="text"
               autocomplete="off"
-              placeholder="Enter a command or ask anything..."
+              spellcheck="false"
+              placeholder="Enter a command or ask AURA anything..."
               aria-label="Command input"
             />
-            <span class="key-hint">ENTER</span>
+            <div class="input-glow-line"></div>
+            <span class="key-hint"><kbd>/</kbd> <kbd>ENTER</kbd></span>
           </div>
+
           <button type="submit" class="send-button" aria-label="Send command">
-            <span>EXECUTE</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            <span class="btn-text">EXECUTE</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="send-icon">
               <path d="m5 12 14-7-4 14-3-6-7-1Z" />
             </svg>
           </button>
         </form>
+
         <div class="dock-meta">
-          <span><i class="meta-pulse"></i> SECURE CHANNEL</span>
-          <span>ESC TO CANCEL</span>
+          <span class="meta-item"><i class="meta-pulse"></i> SECURE CHANNEL</span>
+          <span class="meta-item"><kbd>/</kbd> FOCUS</span>
+          <span class="meta-item"><kbd>ENTER</kbd> SUBMIT</span>
+          <span class="meta-item"><kbd>ESC</kbd> CANCEL</span>
         </div>
         <div class="dock-corner right"></div>
       </footer>
     </div>
 
+    <!-- Message & Queue Item Templates -->
     <template id="message-template">
       <article class="message hud-message">
         <div class="message-meta">
-          <span class="message-avatar hud-avatar"></span>
+          <span class="message-avatar hud-avatar">◈</span>
           <span class="message-name"></span>
           <time>NOW</time>
+          <span class="message-tag">AURA OS</span>
         </div>
-        <p></p>
+        <div class="message-body">
+          <p></p>
+        </div>
       </article>
     </template>
 
     <template id="queue-item-template">
       <button type="button" class="queue-item hud-queue-item">
-        <span class="queue-index"></span>
+        <span class="queue-index">01</span>
         <span class="queue-body">
           <strong class="queue-title"></strong>
           <small class="queue-meta"></small>
         </span>
+        <span class="queue-action-icon">✓</span>
       </button>
     </template>
 
     <template id="reminder-item-template">
       <button type="button" class="queue-item reminder-item hud-queue-item">
-        <span class="queue-index"></span>
+        <span class="queue-index">01</span>
         <span class="queue-body">
           <strong class="queue-title"></strong>
           <small class="queue-meta"></small>
         </span>
+        <span class="queue-action-icon">✕</span>
       </button>
     </template>
 

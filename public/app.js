@@ -73,7 +73,29 @@ const STORAGE_KEYS = {
   timerSettings: "aura.timer-settings.v1",
   faceDescriptors: "aura.face-descriptors.v1",
   faceAuthEnabled: "aura.face-auth-enabled.v1",
+  currentModel: "aura.current-model.v1",
 };
+
+const MALE_VOICE_HINTS = [
+  "male",
+  "man",
+  "david",
+  "mark",
+  "george",
+  "daniel",
+  "alex",
+  "fred",
+  "thomas",
+  "oliver",
+  "aaron",
+  "bruce",
+  "ralph",
+  "albert",
+  "arthur",
+  "james",
+  "john",
+  "tom",
+];
 
 const state = {
   startedAt: Date.now(),
@@ -95,6 +117,7 @@ const state = {
   pauseWakeForSpeech: false,
   speechCycle: 0,
   speechTimer: null,
+  userStoppedRecognition: false,
   tasks: normalizeStoredTasks(loadJson(STORAGE_KEYS.tasks, [])),
   busy: false,
   voicesLoaded: false,
@@ -110,6 +133,16 @@ const state = {
   faceAuthEnabled: loadJson(STORAGE_KEYS.faceAuthEnabled, false),
   faceModelsLoaded: false,
   faceAuthPending: false,
+  currentModel: loadJson(STORAGE_KEYS.currentModel, "nemotron-3-ultra"),
+  availableModels: null,
+};
+
+const LOCAL_MODELS = {
+  'phi-3-mini': { provider: 'Microsoft', size: '2.4 GB', context: 4096, quantized: true },
+  'qwen2-1.5b': { provider: 'Alibaba', size: '1.2 GB', context: 32768, quantized: true },
+  'smollm-1.7b': { provider: 'HuggingFace', size: '1.1 GB', context: 8192, quantized: true },
+  'llama-3.2-1b': { provider: 'Meta', size: '1.3 GB', context: 131072, quantized: true },
+  'llama-3.2-2b': { provider: 'Meta', size: '2.0 GB', context: 131072, quantized: true },
 };
 
 if (state.timerSettings) {
@@ -142,18 +175,120 @@ async function initEnhancedAuth() {
 
 // Auth event handlers
 function handleAuthLock(reason) {
+  console.log('[Auth] handleAuthLock called, reason:', reason);
+  console.log('[Auth] auraAuth:', auraAuth);
   state.authenticated = false;
-  showFaceAuthScreen();
-  elements.assistantStatus.textContent = `Locked: ${reason}`;
+  syncFaceAuthState();
+  
+  // Check if fingerprint or PIN is available as primary auth
+  const hasFingerprint = auraAuth?.state.fingerprintEnabled;
+  const hasPin = auraAuth?.state.pinSet;
+  console.log('[Auth] hasFingerprint:', hasFingerprint, 'hasPin:', hasPin);
+  
+  if (hasFingerprint || hasPin) {
+    showAuthMethodScreen();
+  } else {
+    showFaceAuthScreen();
+  }
+  
+  elements.assistantStatus.textContent = "Locked: " + reason;
   setOrbState("", "LOCKED");
-  addActivity(`Auto-locked: ${reason}`, true);
+  addActivity("Auto-locked: " + reason, true);
+
+  if (!document.hidden && (hasFingerprint || hasPin || state.faceAuthEnabled)) {
+    // The auth method screen handles starting the appropriate auth
+  }
 }
 
 function handleAuthUnlock(method) {
   state.authenticated = true;
   state.authMethod = method;
-  unlockApp();
-  addActivity(`Authenticated via ${method}`);
+  unlockApp(method);
+  
+  // After first auth, enable auto-lock protection
+  if (auraAuth && auraAuth.hasAnyAuthEnrolled()) {
+    setupFaceAuth();
+  }
+}
+
+
+// ── Web Audio UI SFX Engine ──
+const sfxState = {
+  enabled: loadJson("aura.sfx.enabled", true),
+  ctx: null,
+};
+
+function getAudioContext() {
+  if (!sfxState.ctx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) sfxState.ctx = new AudioContext();
+  }
+  if (sfxState.ctx && sfxState.ctx.state === "suspended") {
+    sfxState.ctx.resume();
+  }
+  return sfxState.ctx;
+}
+
+function playUiSound(type) {
+  if (!sfxState.enabled || state.muted) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    if (type === "click" || type === "button") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.04);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.04);
+    } else if (type === "hover") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1400, now);
+      gain.gain.setValueAtTime(0.015, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.025);
+    } else if (type === "execute" || type === "transmit") {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(960, now + 0.12);
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.14);
+    } else if (type === "wake" || type === "chime") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.16);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } else if (type === "alert") {
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.linearRampToValueAtTime(880, now + 0.1);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+  } catch (e) {}
 }
 
 const WAKE_WORDS = {
@@ -640,38 +775,113 @@ const FACE_AUTH_CONFIG = {
   inputSize: 320,
 };
 
+function getFaceAuthProgressEl() {
+  return elements.faceAuthProgress || document.querySelector("#face-auth-progress span") || document.querySelector(".face-auth-progress span");
+}
+
+function setFaceAuthProgress(value) {
+  const progressEl = getFaceAuthProgressEl();
+  if (!progressEl) return;
+  const percent = typeof value === "number" && value <= 1 ? value * 100 : value;
+  progressEl.style.width = Math.max(0, Math.min(100, percent || 0)) + "%";
+}
+
+function setFaceAuthMessage(message) {
+  if (elements.faceAuthMessage) elements.faceAuthMessage.textContent = message;
+}
+
+function setFaceAuthConfidence(confidence) {
+  if (!elements.faceAuthConfidence) return;
+  const confidenceStrong = elements.faceAuthConfidence.querySelector("strong");
+  if (typeof confidence !== "number") {
+    elements.faceAuthConfidence.hidden = true;
+    if (confidenceStrong) confidenceStrong.textContent = "--%";
+    return;
+  }
+
+  elements.faceAuthConfidence.hidden = false;
+  if (confidenceStrong) confidenceStrong.textContent = Math.round(confidence * 100) + "%";
+}
+
+function syncFaceAuthState() {
+  if (auraAuth) {
+    state.faceAuthEnabled = auraAuth.state.faceAuthEnabled;
+    state.faceDescriptors = auraAuth.state.faceDescriptors || [];
+  }
+  console.log('[Auth] syncFaceAuthState - faceAuthEnabled:', state.faceAuthEnabled, 'faceDescriptors:', state.faceDescriptors?.length, 'auraAuth.pinSet:', auraAuth?.state.pinSet, 'auraAuth.fingerprintEnabled:', auraAuth?.state.fingerprintEnabled);
+  updateSecurityCardStatus();
+}
+
+function getFaceDescriptorCount() {
+  return auraAuth?.state.faceDescriptors?.length || state.faceDescriptors.length;
+}
+
+function hasFaceEnrollment() {
+  return getFaceDescriptorCount() > 0;
+}
+
+function formatLivenessChallenge(challenge) {
+  const labels = {
+    blink: "Blink once",
+    lookLeft: "Look left",
+    lookRight: "Look right",
+    lookUp: "Look up",
+    lookDown: "Look down",
+    smile: "Smile",
+  };
+  return labels[challenge] || "Follow the prompt";
+}
+
+function updateFaceAuthProgress(update = {}) {
+  if (update.message) setFaceAuthMessage(update.message);
+  if (typeof update.progress === "number") setFaceAuthProgress(update.progress);
+  if (typeof update.confidence === "number") setFaceAuthConfidence(update.confidence);
+
+  if (update.phase === "liveness" && update.challenge) {
+    const score = typeof update.score === "number" ? " " + Math.round(update.score * 100) + "%" : "";
+    setFaceAuthMessage(formatLivenessChallenge(update.challenge) + score);
+  }
+}
+
+function shouldKeepFaceAuthCameraActive() {
+  return Boolean(
+    auraAuth?.state.authenticated &&
+      auraAuth.state.faceAuthEnabled &&
+      window.AUTH_CONFIG?.continuousProtectionEnabled
+  );
+}
+
 function updateSecurityCardStatus() {
   const securityCard = document.querySelector(".hud-security-card");
   if (!securityCard) return;
 
+  const enabled = auraAuth ? auraAuth.state.faceAuthEnabled : state.faceAuthEnabled;
+  const descriptorCount = auraAuth?.state.faceDescriptors?.length ?? state.faceDescriptors.length;
   const faceStatus = securityCard.querySelector("#face-auth-status");
   if (faceStatus) {
-    faceStatus.textContent = state.faceAuthEnabled && state.faceDescriptors.length > 0
+    faceStatus.textContent = enabled && descriptorCount > 0
       ? "FACE ID ACTIVE"
-      : state.faceAuthEnabled
+      : enabled
         ? "ENROLL REQUIRED"
         : "PASSCODE ONLY";
-    faceStatus.classList.toggle("hud-mint", state.faceAuthEnabled && state.faceDescriptors.length > 0);
+    faceStatus.classList.toggle("hud-crimson", enabled && descriptorCount > 0);
   }
 }
 
 async function clearFaceData() {
+  if (auraAuth) auraAuth.clearFaceData();
   state.faceDescriptors = [];
   state.faceAuthEnabled = false;
   localStorage.setItem(STORAGE_KEYS.faceDescriptors, "[]");
   localStorage.setItem(STORAGE_KEYS.faceAuthEnabled, "false");
 
-  const securityCard = document.querySelector(".hud-security-card");
-  if (securityCard) {
-    const status = securityCard.querySelector(".status-value");
-    if (status) {
-      status.textContent = "PASSCODE ONLY";
-      status.classList.remove("hud-mint");
-    }
-  }
+  updateSecurityCardStatus();
+  stopFaceAuthCamera({ force: true });
 
-  document.getElementById("face-auth-enrolled").hidden = true;
-  document.getElementById("face-auth-skip").textContent = "USE PASSCODE";
+  if (elements.faceAuthEnrolled) elements.faceAuthEnrolled.hidden = true;
+  if (elements.faceAuthSkipBtn) elements.faceAuthSkipBtn.textContent = "USE PASSCODE";
+  setFaceAuthConfidence(null);
+  setFaceAuthProgress(0);
 
   addActivity("Face data cleared", true);
 }
@@ -701,12 +911,26 @@ async function loadFaceModels() {
 }
 
 async function startFaceAuthCamera() {
-  const video = document.getElementById("face-auth-video");
-  const canvas = document.getElementById("face-auth-canvas");
+  const video = elements.faceAuthVideo || document.getElementById("face-auth-video");
+  const canvas = elements.faceAuthCanvas || document.getElementById("face-auth-canvas");
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setFaceAuthMessage("Camera is not available in this browser");
+    return false;
+  }
 
   try {
+    if (video.srcObject) {
+      if (video.paused) await video.play();
+      return true;
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: "user" },
+      video: {
+        width: { ideal: 960 },
+        height: { ideal: 720 },
+        facingMode: "user",
+      },
       audio: false,
     });
     video.srcObject = stream;
@@ -717,17 +941,24 @@ async function startFaceAuthCamera() {
     return true;
   } catch (error) {
     console.error("Camera access denied:", error);
-    elements.faceAuthMessage.textContent = "Camera access required for Face ID";
+    setFaceAuthMessage("Camera access required for Face ID");
     return false;
   }
 }
 
-function stopFaceAuthCamera() {
-  const video = document.getElementById("face-auth-video");
-  if (video.srcObject) {
+function stopFaceAuthCamera(options = {}) {
+  const { force = false } = options;
+  if (!force && shouldKeepFaceAuthCameraActive()) return;
+
+  const video = elements.faceAuthVideo || document.getElementById("face-auth-video");
+  if (video?.srcObject) {
     video.srcObject.getTracks().forEach((track) => track.stop());
     video.srcObject = null;
   }
+
+  const canvas = elements.faceAuthCanvas || document.getElementById("face-auth-canvas");
+  const ctx = canvas?.getContext("2d");
+  if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
 async function detectFace(video) {
@@ -758,198 +989,310 @@ async function initFaceAuth() {
   const cameraStarted = await startFaceAuthCamera();
   if (!cameraStarted) return false;
 
-  elements.faceAuthEnrollBtn?.addEventListener("click", enrollFace);
-  elements.faceAuthSkipBtn?.addEventListener("click", handleFaceAuthSkip);
+  if (elements.faceAuthEnrollBtn) elements.faceAuthEnrollBtn.onclick = enrollFace;
+  if (elements.faceAuthSkipBtn) elements.faceAuthSkipBtn.onclick = handleFaceAuthSkip;
 
   return true;
 }
 
 async function enrollFace() {
-  const btn = document.getElementById("face-auth-enroll");
-  const messageEl = document.getElementById("face-auth-message");
-  const progressEl = document.querySelector("#face-auth-status .hud-progress span");
-  const confidenceEl = document.getElementById("face-auth-confidence");
+  const btn = elements.faceAuthEnrollBtn || document.getElementById("face-auth-enroll");
+  const video = elements.faceAuthVideo || document.getElementById("face-auth-video");
 
   btn.disabled = true;
   btn.textContent = "ENROLLING...";
-  messageEl.textContent = "Look at the camera. Capturing samples...";
-  confidenceEl.hidden = true;
-  progressEl.style.width = "0%";
+  setFaceAuthMessage("Center your face in the frame.");
+  setFaceAuthConfidence(null);
+  setFaceAuthProgress(0);
 
   state.faceAuthPending = true;
-  const samples = [];
-  let captured = 0;
+  try {
+    if (!auraAuth) throw new Error("Enhanced auth not initialized");
 
-  const captureInterval = setInterval(async () => {
-    if (!state.faceAuthPending || captured >= FACE_AUTH_CONFIG.maxEnrollSamples) {
-      clearInterval(captureInterval);
-      btn.disabled = false;
-      btn.textContent = "ENROLL FACE";
-      state.faceAuthPending = false;
+    const result = await auraAuth.enrollFace(video, (progress) => {
+      updateFaceAuthProgress(progress);
+      if (typeof progress.progress === "number") setFaceAuthProgress(progress.progress);
+    });
 
-      if (captured > 0) {
-        const avgDescriptor = new Float32Array(128);
-        for (let i = 0; i < 128; i++) {
-          let sum = 0;
-          samples.forEach((s) => (sum += s[i]));
-          avgDescriptor[i] = sum / samples.length;
-        }
-        state.faceDescriptors.push(Array.from(avgDescriptor));
-        localStorage.setItem(STORAGE_KEYS.faceDescriptors, JSON.stringify(state.faceDescriptors));
+    syncFaceAuthState();
+    // auraAuth.enrollFace() already saves encrypted descriptors and state to v2 keys
+    // No need to write to legacy v1 keys
 
-        messageEl.textContent = `Enrolled! ${state.faceDescriptors.length}/${FACE_AUTH_CONFIG.maxEnrollSamples} samples`;
-        progressEl.style.width = `${(state.faceDescriptors.length / FACE_AUTH_CONFIG.maxEnrollSamples) * 100}%`;
-        confidenceEl.hidden = true;
-
-        if (state.faceDescriptors.length === 1) {
-          document.getElementById("face-auth-enrolled").hidden = false;
-          document.getElementById("face-auth-skip").textContent = "USE PASSCODE";
-        }
-
-        addActivity(`Face enrolled (sample ${state.faceDescriptors.length})`);
-      }
-      return;
+    setFaceAuthMessage("Face enrolled. Liveness protection is active.");
+    setFaceAuthProgress(100);
+    setFaceAuthConfidence(null);
+    if (elements.faceAuthEnrolled) {
+      elements.faceAuthEnrolled.hidden = false;
+      elements.faceAuthEnrolled.textContent = result.samples + " samples enrolled";
     }
-
-    const detection = await detectFace(document.getElementById("face-auth-video"));
-    if (detection) {
-      samples.push(detection.descriptor);
-      captured++;
-      progressEl.style.width = `${(captured / FACE_AUTH_CONFIG.maxEnrollSamples) * 100}%`;
-      messageEl.textContent = `Capturing sample ${captured}/${FACE_AUTH_CONFIG.maxEnrollSamples}...`;
-    }
-  }, 800);
+    if (elements.faceAuthSkipBtn) elements.faceAuthSkipBtn.textContent = "USE PASSCODE";
+    addActivity("Face enrolled with " + result.samples + " quality samples");
+  } catch (error) {
+    console.error(error);
+    setFaceAuthMessage(error instanceof Error ? error.message : "Face enrollment failed");
+    setFaceAuthProgress(0);
+    addActivity("Face enrollment failed", true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "ENROLL FACE";
+    state.faceAuthPending = false;
+  }
 }
 
 async function verifyFace() {
-  if (!state.faceAuthEnabled || state.faceDescriptors.length === 0) {
-    unlockApp();
+  syncFaceAuthState();
+  if (!state.faceAuthEnabled || !hasFaceEnrollment()) {
+    unlockApp("none");
     return true;
   }
 
-  const messageEl = document.getElementById("face-auth-message");
-  const progressEl = document.querySelector("#face-auth-status .hud-progress span");
-  const confidenceEl = document.getElementById("face-auth-confidence");
-  const confidenceStrong = confidenceEl.querySelector("strong");
+  const video = elements.faceAuthVideo || document.getElementById("face-auth-video");
+  setFaceAuthMessage("Complete the liveness check to unlock.");
+  setFaceAuthConfidence(null);
+  setFaceAuthProgress(0.08);
 
-  messageEl.textContent = "Scanning for face...";
-  confidenceEl.hidden = true;
-  progressEl.style.width = "10%";
+  const previousLivenessProgress = window.updateLivenessProgress;
+  window.updateLivenessProgress = (challenge, score, detail = {}) => {
+    updateFaceAuthProgress({
+      phase: "liveness",
+      challenge,
+      score,
+      progress: detail.progress,
+      message: detail.message,
+    });
+  };
 
-  const video = document.getElementById("face-auth-video");
-  let attempts = 0;
-  const maxAttempts = 30;
-  let bestMatch = 0;
+  try {
+    if (!auraAuth) throw new Error("Enhanced auth not initialized");
+    const result = await auraAuth.authenticate("face", {
+      videoElement: video,
+      requireLiveness: true,
+      onProgress: updateFaceAuthProgress,
+    });
 
-  const scanInterval = setInterval(async () => {
-    attempts++;
-    progressEl.style.width = `${Math.min(90, (attempts / maxAttempts) * 100)}%`;
-
-    const detection = await detectFace(video);
-    if (detection) {
-      let minDistance = Infinity;
-      for (const stored of state.faceDescriptors) {
-        const distance = faceapi.euclideanDistance(detection.descriptor, new Float32Array(stored));
-        if (distance < minDistance) minDistance = distance;
-      }
-
-      const confidence = Math.max(0, (1 - minDistance) * 100);
-      if (confidence > bestMatch) bestMatch = confidence;
-
-      if (confidence >= FACE_AUTH_CONFIG.minConfidence * 100) {
-        clearInterval(scanInterval);
-        confidenceEl.hidden = false;
-        confidenceStrong.textContent = `${Math.round(confidence)}%`;
-        messageEl.textContent = "✓ Face verified. Access granted.";
-        progressEl.style.width = "100%";
-
-        await new Promise((r) => setTimeout(r, 800));
-        unlockApp();
-        return;
-      }
-
-      confidenceEl.hidden = false;
-      confidenceStrong.textContent = `${Math.round(confidence)}%`;
-      messageEl.textContent = `Verifying... (${Math.round(confidence)}% match)`;
+    if (result.success) {
+      setFaceAuthConfidence(result.confidence ?? 1);
+      setFaceAuthMessage("Face verified. Access granted.");
+      setFaceAuthProgress(100);
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      auraAuth.unlock(result.method || "face");
+      return true;
     }
 
-    if (attempts >= maxAttempts) {
-      clearInterval(scanInterval);
-      confidenceEl.hidden = false;
-      confidenceStrong.textContent = `${Math.round(bestMatch)}%`;
-      messageEl.textContent = "Face not recognized. Try again or use passcode.";
-      addActivity("Face verification failed", true);
-    }
-  }, 300);
+    setFaceAuthConfidence(result.confidence || 0);
+    setFaceAuthMessage("Face auth failed: " + result.error + ". Use passcode.");
+    setFaceAuthProgress(0);
+    if (elements.faceAuthSkipBtn) elements.faceAuthSkipBtn.hidden = false;
+    addActivity("Face auth failed: " + result.error, true);
+    return false;
+  } catch (error) {
+    console.error(error);
+    setFaceAuthMessage(error instanceof Error ? error.message : "Face authentication failed");
+    setFaceAuthProgress(0);
+    addActivity("Face authentication failed", true);
+    return false;
+  } finally {
+    window.updateLivenessProgress = previousLivenessProgress;
+  }
 }
 
-function unlockApp() {
-  const overlay = document.getElementById("face-auth-overlay");
+function unlockApp(method = "face") {
+  const overlay = elements.faceAuthOverlay || document.getElementById("face-auth-overlay");
   if (overlay) {
     overlay.hidden = true;
     overlay.removeAttribute("aria-modal");
   }
-  stopFaceAuthCamera();
+
   state.faceAuthPending = false;
+  syncFaceAuthState();
+  stopFaceAuthCamera();
+  updateSecurityCardStatus();
 
-  const securityCard = document.querySelector(".hud-security-card");
-  if (securityCard) {
-    const status = securityCard.querySelector(".status-value");
-    if (status) {
-      status.textContent = state.faceAuthEnabled ? "FACE ID ACTIVE" : "PASSCODE ONLY";
-      status.classList.add("hud-mint");
-    }
-  }
-
-  addActivity("Face authentication successful");
+  addActivity(method === "none" ? "Authentication not required" : "Authenticated via " + method);
   elements.assistantStatus.textContent = "Welcome back. All systems operational.";
-  setOrbState("", state.wakeEnabled ? "SAY \u201CAURA\u201D" : "TAP TO SPEAK");
+  setOrbState("", state.wakeEnabled ? "SAY “AURA”" : "TAP TO SPEAK");
 }
 
 function showFaceAuthScreen() {
-  const overlay = document.getElementById("face-auth-overlay");
+  const overlay = elements.faceAuthOverlay || document.getElementById("face-auth-overlay");
   if (overlay) {
     overlay.hidden = false;
     overlay.setAttribute("aria-modal", "true");
   }
+  hidePinEntry();
+  setFaceAuthConfidence(null);
+  setFaceAuthProgress(0);
   elements.assistantStatus.textContent = "Face authentication required";
   setOrbState("", "FACE ID");
 }
 
 function handleFaceAuthSkip() {
-  if (state.faceAuthEnabled && state.faceDescriptors.length > 0) {
-    addActivity("Face ID bypassed - passcode used", true);
+  syncFaceAuthState();
+  if (state.faceAuthEnabled && hasFaceEnrollment()) {
+    addActivity("Face ID bypass requested", true);
   }
   
-  // Show PIN entry instead of unlocking directly
-  showPinEntry();
+  // Show auth method selector instead of directly showing PIN
+  showAuthMethodScreen();
 }
 
 // PIN Entry Functions
+function showAuthMethodScreen() {
+  console.log('[Auth] showAuthMethodScreen called');
+  console.log('[Auth] auraAuth:', auraAuth);
+  console.log('[Auth] fingerprintEnabled:', auraAuth?.state.fingerprintEnabled);
+  console.log('[Auth] pinSet:', auraAuth?.state.pinSet);
+  console.log('[Auth] faceAuthEnabled:', state.faceAuthEnabled);
+  console.log('[Auth] hasFaceEnrollment:', hasFaceEnrollment());
+  
+  const overlay = elements.faceAuthOverlay || document.getElementById("face-auth-overlay");
+  console.log('[Auth] overlay:', overlay);
+  if (overlay) {
+    overlay.hidden = false;
+    overlay.setAttribute("aria-modal", "true");
+  }
+  
+  // Hide face auth elements, show auth method selector
+  const videoWrap = document.querySelector(".face-auth-video-wrap");
+  if (videoWrap) videoWrap.hidden = true;
+  
+  const statusPanel = document.getElementById("face-auth-panel");
+  if (statusPanel) statusPanel.hidden = true;
+  
+  const actions = document.querySelector(".face-auth-actions");
+  if (actions) actions.hidden = true;
+  
+  // Create or show auth method selector
+  let selector = document.getElementById("auth-method-selector");
+  if (!selector) {
+    selector = document.createElement("div");
+    selector.id = "auth-method-selector";
+    selector.className = "auth-method-selector";
+    selector.innerHTML = `
+      <h2 class="face-auth-message">Choose authentication method</h2>
+      <div class="face-auth-actions" style="flex-direction: column; gap: 12px;">
+        ${auraAuth?.state.fingerprintEnabled ? `
+          <button type="button" id="auth-fingerprint" class="face-auth-btn primary">
+            <span class="btn-icon">👆</span>
+            Use Fingerprint
+          </button>
+        ` : ''}
+        ${auraAuth?.state.pinSet ? `
+          <button type="button" id="auth-pin" class="face-auth-btn secondary">
+            <span class="btn-icon">🔢</span>
+            Use PIN
+          </button>
+        ` : ''}
+        ${state.faceAuthEnabled && hasFaceEnrollment() ? `
+          <button type="button" id="auth-face" class="face-auth-btn ghost">
+            <span class="btn-icon">👤</span>
+            Use Face ID
+          </button>
+        ` : ''}
+      </div>
+    `;
+    
+    const container = document.querySelector(".face-auth-container");
+    console.log('[Auth] container:', container);
+    if (container) {
+      const footer = document.querySelector(".face-auth-footer");
+      console.log('[Auth] footer:', footer);
+      container.insertBefore(selector, footer);
+    }
+  }
+  selector.hidden = false;
+  console.log('[Auth] selector:', selector);
+  
+  // Add click handlers
+  const fpBtn = document.getElementById("auth-fingerprint");
+  const pinBtn = document.getElementById("auth-pin");
+  const faceBtn = document.getElementById("auth-face");
+  
+  console.log('[Auth] fpBtn:', fpBtn, 'pinBtn:', pinBtn, 'faceBtn:', faceBtn);
+  
+  if (fpBtn) fpBtn.onclick = () => authenticateWithFingerprint();
+  if (pinBtn) pinBtn.onclick = () => showPinEntry();
+  if (faceBtn) faceBtn.onclick = () => startFaceAuth();
+  
+  elements.assistantStatus.textContent = "Authentication required";
+  setOrbState("", "AUTH");
+}
+
+function startFaceAuth() {
+  const selector = document.getElementById("auth-method-selector");
+  if (selector) selector.hidden = true;
+  
+  const videoWrap = document.querySelector(".face-auth-video-wrap");
+  if (videoWrap) videoWrap.hidden = false;
+  
+  const statusPanel = document.getElementById("face-auth-panel");
+  if (statusPanel) statusPanel.hidden = false;
+  
+  const actions = document.querySelector(".face-auth-actions");
+  if (actions) actions.hidden = false;
+  
+  initFaceAuth().then((initialized) => {
+    if (initialized && hasFaceEnrollment()) verifyFace();
+  });
+}
+
+async function authenticateWithFingerprint() {
+  if (!auraAuth) return;
+  
+  setFaceAuthMessage("Touch the fingerprint sensor...");
+  setFaceAuthProgress(0.1);
+  
+  try {
+    const result = await auraAuth.authenticate("fingerprint");
+    if (result.success) {
+      setFaceAuthConfidence(1);
+      setFaceAuthMessage("Fingerprint verified. Access granted.");
+      setFaceAuthProgress(100);
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      auraAuth.unlock("fingerprint");
+      return true;
+    } else {
+      setFaceAuthMessage("Fingerprint failed: " + result.error + ". Try PIN or Face ID.");
+      setFaceAuthProgress(0);
+      showAuthMethodScreen();
+      return false;
+    }
+  } catch (error) {
+    console.error(error);
+    setFaceAuthMessage(error.message);
+    setFaceAuthProgress(0);
+    showAuthMethodScreen();
+    return false;
+  }
+}
+
 function showPinEntry() {
+  // Hide the auth method selector
+  const selector = document.getElementById("auth-method-selector");
+  if (selector) selector.hidden = true;
+  
   const pinContainer = document.getElementById("face-auth-pin");
-  const skipBtn = document.getElementById("face-auth-skip");
-  const enrollBtn = document.getElementById("face-auth-enroll");
-  const messageEl = document.getElementById("face-auth-message");
-  const progressEl = document.querySelector("#face-auth-status .hud-progress span");
+  const skipBtn = elements.faceAuthSkipBtn || document.getElementById("face-auth-skip");
+  const enrollBtn = elements.faceAuthEnrollBtn || document.getElementById("face-auth-enroll");
   
   if (pinContainer) {
     pinContainer.hidden = false;
-    skipBtn.hidden = true;
+    if (skipBtn) skipBtn.hidden = true;
     if (enrollBtn) enrollBtn.hidden = true;
-    messageEl.textContent = "Enter your PIN to unlock";
-    progressEl.style.width = "0%";
+    setFaceAuthMessage("Enter your PIN to unlock");
+    setFaceAuthProgress(0);
+    setFaceAuthConfidence(null);
     
-    // Focus first input
     const inputs = pinContainer.querySelectorAll("input");
-    inputs.forEach((input, i) => {
+    inputs.forEach((input) => {
       input.value = "";
+      input.removeEventListener("input", handlePinInput);
+      input.removeEventListener("keydown", handlePinKeydown);
       input.addEventListener("input", handlePinInput);
       input.addEventListener("keydown", handlePinKeydown);
     });
-    inputs[0].focus();
+    inputs[0]?.focus();
     
-    // Setup submit button
     const submitBtn = document.getElementById("face-auth-pin-submit");
     const cancelBtn = document.getElementById("face-auth-pin-cancel");
     if (submitBtn) {
@@ -958,10 +1301,14 @@ function showPinEntry() {
     }
     if (cancelBtn) {
       cancelBtn.hidden = false;
-      cancelBtn.onclick = hidePinEntry;
+      cancelBtn.onclick = () => {
+        hidePinEntry();
+        showAuthMethodScreen();
+      };
     }
     
-    document.getElementById("face-auth-pin-error").hidden = true;
+    const errorEl = document.getElementById("face-auth-pin-error");
+    if (errorEl) errorEl.hidden = true;
   }
 }
 
@@ -988,17 +1335,16 @@ function hidePinEntry() {
 
 function handlePinInput(e) {
   const input = e.target;
+  input.value = input.value.replace(/\D/g, "").slice(-1);
   const inputs = input.parentElement.querySelectorAll("input");
   const index = Array.from(inputs).indexOf(input);
   
-  // Auto-advance to next input
   if (input.value && index < inputs.length - 1) {
     inputs[index + 1].focus();
   }
   
-  // Check if all filled
-  const pin = Array.from(inputs).map(i => i.value).join("");
-  if (pin.length >= 4) {
+  const pin = Array.from(inputs).map((item) => item.value).join("");
+  if (pin.length === inputs.length) {
     verifyPinEntry();
   }
 }
@@ -1021,7 +1367,7 @@ async function verifyPinEntry() {
   const pinContainer = document.getElementById("face-auth-pin");
   const inputs = pinContainer.querySelectorAll("input");
   const errorEl = document.getElementById("face-auth-pin-error");
-  const pin = Array.from(inputs).map(i => i.value).join("");
+  const pin = Array.from(inputs).map((item) => item.value).join("");
   
   if (pin.length < 4) {
     errorEl.textContent = "PIN must be at least 4 digits";
@@ -1030,37 +1376,40 @@ async function verifyPinEntry() {
   }
   
   try {
-    if (auraAuth) {
-      const result = await auraAuth.authenticate('pin', { pin });
-      if (result.success) {
-        auraAuth.unlock('pin');
-        hidePinEntry();
-        unlockApp();
-        addActivity("PIN authentication successful");
-        return;
-      }
-    }
-    
-    // Fallback to legacy PIN check
-    if (await auraAuth.verifyPin(pin)) {
-      auraAuth.unlock('pin');
-      hidePinEntry();
-      unlockApp();
-      addActivity("PIN authentication successful");
-      return;
-    }
+    if (!auraAuth?.state.pinSet) throw new Error("PIN not set");
+    const result = await auraAuth.authenticate("pin", { pin });
+    if (!result.success) throw new Error(result.error || "Invalid PIN");
+
+    auraAuth.unlock("pin");
+    hidePinEntry();
+    addActivity("PIN authentication successful");
   } catch (e) {
     errorEl.textContent = e.message;
     errorEl.hidden = false;
-    inputs.forEach(i => i.value = "");
-    inputs[0].focus();
-    addActivity(`PIN auth failed: ${e.message}`, true);
+    inputs.forEach((input) => (input.value = ""));
+    inputs[0]?.focus();
+    addActivity("PIN auth failed: " + e.message, true);
   }
 }
 
 async function setupFaceAuth() {
-  if (!auraAuth || !auraAuth.state.faceAuthEnabled) {
-    unlockApp();
+  console.log('[Auth] setupFaceAuth called');
+  syncFaceAuthState();
+  
+  // Check if fingerprint or PIN is available as primary auth
+  const hasFingerprint = auraAuth?.state.fingerprintEnabled;
+  const hasPin = auraAuth?.state.pinSet;
+  console.log('[Auth] setupFaceAuth - hasFingerprint:', hasFingerprint, 'hasPin:', hasPin, 'faceAuthEnabled:', state.faceAuthEnabled, 'hasFaceEnrollment:', hasFaceEnrollment());
+  
+  // If fingerprint or PIN is available, show that instead of face
+  if ((hasFingerprint || hasPin) && (!state.faceAuthEnabled || !hasFaceEnrollment())) {
+    showAuthMethodScreen();
+    return;
+  }
+  
+  // Otherwise fall back to face auth
+  if (!auraAuth || !state.faceAuthEnabled) {
+    unlockApp("none");
     return;
   }
 
@@ -1071,53 +1420,49 @@ async function setupFaceAuth() {
     return;
   }
 
-  if (auraAuth.state.faceDescriptors.length === 0) {
-    document.getElementById("face-auth-enroll").hidden = false;
-    document.getElementById("face-auth-message").textContent = "No face enrolled. Click Enroll Face to begin.";
-    document.querySelector("#face-auth-status .hud-progress span").style.width = "0%";
-  } else {
-    document.getElementById("face-auth-message").textContent = "Look at the camera to authenticate";
-    document.querySelector("#face-auth-status .hud-progress span").style.width = "0%";
-    
-    // Use enhanced auth with liveness detection
-    const video = document.getElementById("face-auth-video");
-    const result = await auraAuth.authenticate('face', { videoElement: video, requireLiveness: true });
-    
-    if (result.success) {
-      auraAuth.unlock('face');
-      unlockApp();
-    } else {
-      document.getElementById("face-auth-message").textContent = `Face auth failed: ${result.error}. Use passcode.`;
-      addActivity(`Face auth failed: ${result.error}`, true);
-      // Show passcode option
-      document.getElementById("face-auth-skip").hidden = false;
-    }
+  if (!hasFaceEnrollment()) {
+    if (elements.faceAuthEnrollBtn) elements.faceAuthEnrollBtn.hidden = false;
+    if (elements.faceAuthEnrolled) elements.faceAuthEnrolled.hidden = true;
+    setFaceAuthMessage("No face enrolled. Click Enroll Face to begin.");
+    setFaceAuthProgress(0);
+    return;
   }
+
+  if (elements.faceAuthEnrollBtn) elements.faceAuthEnrollBtn.hidden = true;
+  if (elements.faceAuthEnrolled) {
+    elements.faceAuthEnrolled.hidden = false;
+    elements.faceAuthEnrolled.textContent = getFaceDescriptorCount() + " samples enrolled";
+  }
+  setFaceAuthMessage("Look at the camera to authenticate");
+  setFaceAuthProgress(0);
+  await verifyFace();
 }
 
-function toggleFaceAuth() {
-  state.faceAuthEnabled = !state.faceAuthEnabled;
-  localStorage.setItem(STORAGE_KEYS.faceAuthEnabled, JSON.stringify(state.faceAuthEnabled));
+async function toggleFaceAuth() {
+  const enabled = !state.faceAuthEnabled;
+  state.faceAuthEnabled = enabled;
+  localStorage.setItem(STORAGE_KEYS.faceAuthEnabled, JSON.stringify(enabled));
 
-  const securityCard = document.querySelector(".hud-security-card");
-  if (securityCard) {
-    const status = securityCard.querySelector(".status-value");
-    if (status) {
-      status.textContent = state.faceAuthEnabled ? "FACE ID ACTIVE" : "PASSCODE ONLY";
-    }
+  if (auraAuth) {
+    auraAuth.state.faceAuthEnabled = enabled;
+    auraAuth.saveState();
   }
 
-  if (state.faceAuthEnabled && state.faceDescriptors.length === 0) {
+  syncFaceAuthState();
+
+  if (!enabled) {
+    stopFaceAuthCamera({ force: true });
+  } else if (!hasFaceEnrollment()) {
     showFaceAuthScreen();
     initFaceAuth().then((initialized) => {
       if (initialized) {
-        document.getElementById("face-auth-enroll").hidden = false;
-        document.getElementById("face-auth-message").textContent = "No face enrolled. Click Enroll Face to begin.";
+        if (elements.faceAuthEnrollBtn) elements.faceAuthEnrollBtn.hidden = false;
+        setFaceAuthMessage("No face enrolled. Click Enroll Face to begin.");
       }
     });
   }
 
-  addActivity(`Face authentication ${state.faceAuthEnabled ? "enabled" : "disabled"}`, !state.faceAuthEnabled);
+  addActivity("Face authentication " + (enabled ? "enabled" : "disabled"), !enabled);
 }
 
 function getExportPayload() {
@@ -1231,25 +1576,51 @@ function updateClock() {
   const now = new Date();
   const hours = now.getHours();
   const period = hours < 5 ? "NIGHT" : hours < 12 ? "MORNING" : hours < 17 ? "AFTERNOON" : hours < 21 ? "EVENING" : "NIGHT";
-  const greeting = hours < 5 ? "Still awake?" : hours < 12 ? "Good morning." : hours < 17 ? "Good afternoon." : hours < 21 ? "Good evening." : "Good night.";
+  const greeting = hours < 5 ? "Good night." : hours < 12 ? "Good morning." : hours < 17 ? "Good afternoon." : hours < 21 ? "Good evening." : "Good night.";
 
-  elements.clock.textContent = now.toLocaleTimeString([], { hour12: false });
-  elements.date.textContent = now
-    .toLocaleDateString("en-US", { weekday: "short", day: "2-digit", month: "short" })
-    .toUpperCase()
-    .replace(",", " /");
-  elements.environmentTime.textContent = now.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  elements.dayPeriod.textContent = period;
-  elements.greeting.textContent = greeting;
+  if (elements.clock) elements.clock.textContent = now.toLocaleTimeString([], { hour12: false });
+  if (elements.date) {
+    elements.date.textContent = now
+      .toLocaleDateString("en-US", { weekday: "short", day: "2-digit", month: "short" })
+      .toUpperCase()
+      .replace(",", " /");
+  }
+  if (elements.environmentTime) {
+    elements.environmentTime.textContent = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+  if (elements.dayPeriod) elements.dayPeriod.textContent = period;
+
+  const envDateEl = document.querySelector("#environment-date");
+  if (envDateEl) {
+    envDateEl.textContent = now
+      .toLocaleDateString("en-US", { weekday: "short", day: "2-digit", month: "short" })
+      .toUpperCase()
+      .replace(",", " /");
+  }
+
+  if (elements.greeting) elements.greeting.textContent = greeting;
+
+  const utcClock = document.querySelector("#utc-clock");
+  if (utcClock) {
+    utcClock.textContent = `UTC ${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+  }
+
+  const stardateEl = document.querySelector("#stardate-val");
+  if (stardateEl) {
+    const startYear = new Date(now.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((now.getTime() - startYear.getTime()) / 86400000);
+    const stardate = (now.getFullYear() + (dayOfYear / 365.25)).toFixed(3);
+    stardateEl.textContent = `SD ${stardate}`;
+  }
 
   const elapsedSeconds = Math.floor((Date.now() - state.startedAt) / 1000);
   const minutes = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
   const seconds = String(elapsedSeconds % 60).padStart(2, "0");
-  elements.uptime.textContent = `${minutes}:${seconds}`;
+  if (elements.uptime) elements.uptime.textContent = `${minutes}:${seconds}`;
 }
 
 function updateMemoryCount() {
@@ -1465,17 +1836,11 @@ function speak(text) {
     const utterance = new SpeechSynthesisUtterance(spokenText);
     const voices = window.speechSynthesis.getVoices();
     const language = getSpeechLanguage();
-    const normalizedLanguage = language.toLowerCase().replace("_", "-");
-    const baseLanguage = normalizedLanguage.split("-")[0];
 
     utterance.lang = language;
-    utterance.voice =
-      voices.find((voice) => voice.lang.toLowerCase().replace("_", "-") === normalizedLanguage) ||
-      voices.find((voice) => voice.lang.toLowerCase().replace("_", "-").startsWith(`${baseLanguage}-`)) ||
-      voices.find((voice) => /en/i.test(voice.lang)) ||
-      null;
+    utterance.voice = pickAssistantVoice(voices, language);
     utterance.rate = 1.02;
-    utterance.pitch = 0.82;
+    utterance.pitch = 0.76;
     utterance.volume = 0.82;
     const finishSpeech = () => {
       if (speechCycle !== state.speechCycle) return;
@@ -1508,6 +1873,32 @@ function waitForVoices() {
       resolve();
     }, 500);
   });
+}
+
+function getNormalizedVoiceLanguage(voice) {
+  return voice.lang.toLowerCase().replace("_", "-");
+}
+
+function hasMaleVoiceHint(voice) {
+  const name = voice.name.toLowerCase();
+  if (name.includes("female") || name.includes("woman")) return false;
+  return MALE_VOICE_HINTS.some((hint) => name.includes(hint));
+}
+
+function pickAssistantVoice(voices, language) {
+  const normalizedLanguage = language.toLowerCase().replace("_", "-");
+  const baseLanguage = normalizedLanguage.split("-")[0];
+  const exactLanguageVoices = voices.filter((voice) => getNormalizedVoiceLanguage(voice) === normalizedLanguage);
+  const baseLanguageVoices = voices.filter((voice) => getNormalizedVoiceLanguage(voice).startsWith(`${baseLanguage}-`));
+  const englishVoices = voices.filter((voice) => /en/i.test(voice.lang));
+  const voiceGroups = [exactLanguageVoices, baseLanguageVoices, englishVoices, voices];
+
+  for (const group of voiceGroups) {
+    const maleVoice = group.find(hasMaleVoiceHint);
+    if (maleVoice) return maleVoice;
+  }
+
+  return exactLanguageVoices[0] || baseLanguageVoices[0] || englishVoices[0] || null;
 }
 
 function playWakeTone() {
@@ -2124,18 +2515,18 @@ async function localResponse(input) {
   }
 
   if (normalized === "/face-id on" || /\b(enable face id|turn on face id|face auth on)\b/.test(normalized)) {
-    if (!state.faceAuthEnabled) toggleFaceAuth();
+    if (!state.faceAuthEnabled) await toggleFaceAuth();
     return "Face authentication enabled. Look at the camera to unlock.";
   }
 
   if (normalized === "/face-id off" || /\b(disable face id|turn off face id|face auth off)\b/.test(normalized)) {
-    if (state.faceAuthEnabled) toggleFaceAuth();
+    if (state.faceAuthEnabled) await toggleFaceAuth();
     return "Face authentication disabled. Passcode only mode active.";
   }
 
   if (normalized === "/face-id enroll" || /\b(enroll face|register face|add face)\b/.test(normalized)) {
     if (!state.faceAuthEnabled) {
-      toggleFaceAuth();
+      await toggleFaceAuth();
       return "Face authentication enabled. Click Enroll Face on the lock screen to begin.";
     }
     if (state.faceDescriptors.length >= FACE_AUTH_CONFIG.maxEnrollSamples) {
@@ -2158,8 +2549,8 @@ async function localResponse(input) {
 
   if (normalized === "/face-id status" || /\b(face id status|face auth status)\b/.test(normalized)) {
     const enabled = state.faceAuthEnabled ? "enabled" : "disabled";
-    const samples = state.faceDescriptors.length;
-    return `Face authentication: ${enabled}. Enrolled samples: ${samples}/${FACE_AUTH_CONFIG.maxEnrollSamples}.`;
+    const samples = getFaceDescriptorCount();
+    return `Face authentication: ${enabled}. Enrolled samples: ${samples}/${window.AUTH_CONFIG?.maxEnrollSamples || FACE_AUTH_CONFIG.maxEnrollSamples}.`;
   }
 
   // Enhanced Auth Commands
@@ -2213,6 +2604,91 @@ async function localResponse(input) {
     }
   }
 
+  // Fingerprint commands
+  if (normalized === "/fingerprint enroll" || /\b(enroll fingerprint|add fingerprint|register fingerprint)\b/.test(normalized)) {
+    if (!auraAuth) return "Auth not initialized.";
+    if (auraAuth.state.fingerprintEnabled) {
+      return "Fingerprint already enrolled. Use /fingerprint remove first.";
+    }
+    try {
+      const result = await auraAuth.enrollFingerprint();
+      if (result.success) {
+        return "Fingerprint enrolled successfully.";
+      }
+      return `Failed to enroll fingerprint: ${result.error}`;
+    } catch (e) {
+      return `Failed to enroll fingerprint: ${e.message}`;
+    }
+  }
+
+  if (normalized === "/fingerprint remove" || /\b(remove fingerprint|delete fingerprint)\b/.test(normalized)) {
+    if (!auraAuth || !auraAuth.state.fingerprintEnabled) {
+      return "No fingerprint enrolled.";
+    }
+    auraAuth.state.fingerprintEnabled = false;
+    auraAuth.state.fingerprintCredentialId = null;
+    localStorage.removeItem(AUTH_STORAGE_KEYS.fingerprintEnabled);
+    localStorage.removeItem(AUTH_STORAGE_KEYS.fingerprintCredentialId);
+    auraAuth.saveState();
+    return "Fingerprint removed.";
+  }
+
+  if (normalized === "/fingerprint status" || /\b(fingerprint status)\b/.test(normalized)) {
+    if (!auraAuth) return "Auth not initialized.";
+    return `Fingerprint: ${auraAuth.state.fingerprintEnabled ? 'enrolled' : 'not enrolled'}. WebAuthn: ${window.PublicKeyCredential ? 'supported' : 'not supported'}.`;
+  }
+
+  // Iris/Eye scanning commands
+  if (normalized === "/iris enroll" || /\b(enroll iris|add iris|register iris|enroll eyes|scan eyes)\b/.test(normalized)) {
+    if (!auraAuth) return "Auth not initialized.";
+    if (auraAuth.state.irisAuthEnabled) {
+      return "Iris already enrolled. Use /iris remove first.";
+    }
+    if (!window.faceapi) return "face-api.js not loaded.";
+    
+    try {
+      const video = document.createElement('video');
+      video.style.display = 'none';
+      document.body.appendChild(video);
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+      video.srcObject = stream;
+      await video.play();
+      
+      const result = await auraAuth.enrollIris(video, (progress) => {
+        console.log('Iris enrollment progress:', progress);
+      });
+      
+      stream.getTracks().forEach(t => t.stop());
+      video.remove();
+      
+      if (result.success) {
+        return `Iris enrolled successfully with ${result.samples} samples.`;
+      }
+      return `Failed to enroll iris: ${result.error || 'Unknown error'}`;
+    } catch (e) {
+      return `Failed to enroll iris: ${e.message}`;
+    }
+  }
+
+  if (normalized === "/iris remove" || /\b(remove iris|delete iris)\b/.test(normalized)) {
+    if (!auraAuth || !auraAuth.state.irisAuthEnabled) {
+      return "No iris enrolled.";
+    }
+    auraAuth.state.irisAuthEnabled = false;
+    auraAuth.state.irisDescriptors = [];
+    auraAuth.state.enrolledIrisDescriptor = null;
+    localStorage.removeItem(AUTH_STORAGE_KEYS.irisAuthEnabled);
+    localStorage.removeItem(AUTH_STORAGE_KEYS.irisDescriptors);
+    auraAuth.saveState();
+    return "Iris removed.";
+  }
+
+  if (normalized === "/iris status" || /\b(iris status|eye scanner status)\b/.test(normalized)) {
+    if (!auraAuth) return "Auth not initialized.";
+    return `Iris scanner: ${auraAuth.state.irisAuthEnabled ? 'enrolled' : 'not enrolled'}. Samples: ${auraAuth.state.irisDescriptors.length}/${window.AUTH_CONFIG?.maxIrisEnrollSamples || 4}.`;
+  }
+
   if (normalized === "/liveness on" || /\b(enable liveness|liveness on)\b/.test(normalized)) {
     if (window.AUTH_CONFIG) {
       window.AUTH_CONFIG.livenessEnabled = true;
@@ -2248,7 +2724,7 @@ async function localResponse(input) {
   if (normalized === "/auth status" || /\b(auth status|authentication status)\b/.test(normalized)) {
     if (!auraAuth) return "Enhanced auth not initialized.";
     const s = auraAuth.state;
-    return `Authenticated: ${s.authenticated} (${s.authMethod || 'none'}). Face: ${s.faceAuthEnabled ? 'on' : 'off'}. PIN: ${s.pinSet ? 'set' : 'not set'}. Liveness: ${window.AUTH_CONFIG?.livenessEnabled ? 'on' : 'off'}. Auto-lock: ${s.continuousProtectionActive ? 'active' : 'inactive'}.`;
+    return `Authenticated: ${s.authenticated} (${s.authMethod || 'none'}). Face: ${s.faceAuthEnabled ? 'on' : 'off'}. PIN: ${s.pinSet ? 'set' : 'not set'}. Fingerprint: ${s.fingerprintEnabled ? 'enrolled' : 'not enrolled'}. Iris: ${s.irisAuthEnabled ? 'enrolled' : 'not enrolled'}. Liveness: ${window.AUTH_CONFIG?.livenessEnabled ? 'on' : 'off'}. Auto-lock: ${s.continuousProtectionActive ? 'active' : 'inactive'}.`;
   }
 
   if (normalized === "/lock" || /\b(lock now|lock aura)\b/.test(normalized)) {
@@ -2399,10 +2875,25 @@ async function localResponse(input) {
 
 async function requestLiveResponse() {
   const start = performance.now();
+  
+  // Check if using local model
+  const isLocalModel = LOCAL_MODELS[state.currentModel];
+  
+  if (isLocalModel && window.localAI) {
+    return await requestLocalResponse();
+  }
+  
+  // OpenRouter API
   const response = await fetch("/api/assistant", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: state.history.slice(-12) }),
+    body: JSON.stringify({ 
+      messages: state.history.slice(-12),
+      model: state.currentModel || "nemotron-3-ultra",
+      temperature: 0.7,
+      maxTokens: 2048,
+      stream: true,
+    }),
   });
 
   if (!response.ok) {
@@ -2428,11 +2919,13 @@ async function requestLiveResponse() {
           const data = JSON.parse(line.slice(6));
           if (data.text) {
             fullText += data.text;
-            // Update UI incrementally for streaming feel
             updateLastMessage(fullText);
           }
           if (data.done) {
             usage = data.usage;
+          }
+          if (data.tool_calls) {
+            await handleToolCalls(data.tool_calls);
           }
         } catch (e) {
           // Ignore parse errors
@@ -2445,6 +2938,55 @@ async function requestLiveResponse() {
   elements.latency.innerHTML = `${latency}<small>ms</small>`;
 
   return fullText;
+}
+
+async function requestLocalResponse() {
+  if (!window.localAI) {
+    throw new Error("Local AI engine not loaded");
+  }
+  
+  const modelInfo = LOCAL_MODELS[state.currentModel];
+  elements.assistantStatus.textContent = `Loading ${modelInfo.name}...`;
+  
+  try {
+    // Load model if not already loaded
+    if (!window.localAI.isModelLoaded(state.currentModel)) {
+      elements.assistantStatus.textContent = `Downloading ${modelInfo.name} (${modelInfo.size})...`;
+      
+      await window.localAI.loadModel(state.currentModel, (progress) => {
+        elements.assistantStatus.textContent = `Loading ${modelInfo.name}: ${Math.round(progress * 100)}%`;
+      });
+    }
+    
+    elements.assistantStatus.textContent = `Generating with ${modelInfo.name}...`;
+    
+    // Format messages for local model
+    const messages = state.history.slice(-12);
+    const prompt = window.localAI.formatMessages(messages);
+    
+    let fullText = "";
+    
+    for await (const chunk of window.localAI.generate(prompt, {
+      maxTokens: 2048,
+      temperature: 0.7,
+      topP: 0.9,
+    })) {
+      if (chunk.text) {
+        fullText += chunk.text;
+        updateLastMessage(fullText);
+      }
+      if (chunk.done) break;
+    }
+    
+    const latency = Math.max(1, Math.round(performance.now() - start));
+    elements.latency.innerHTML = `${latency}<small>ms (local)</small>`;
+    elements.assistantStatus.textContent = `Response generated locally`;
+    
+    return fullText;
+  } catch (error) {
+    console.error('Local AI error:', error);
+    throw new Error(`Local AI failed: ${error.message}`);
+  }
 }
 
 function updateLastMessage(text) {
@@ -2524,7 +3066,9 @@ async function handleCommand(rawInput) {
   const weatherCommand = isWeatherCommand(input);
   const timerCommand = isTimerCommand(input);
   const forgetCommand = isForgetCommand(input);
-  const isLiveAI = !shouldUseLocalCommand(input) && state.liveAI;
+  const isLocalModel = LOCAL_MODELS[state.currentModel];
+  const isLiveAI = !shouldUseLocalCommand(input) && state.liveAI && !isLocalModel;
+  const useLocalAI = isLocalModel && window.localAI;
   const start = performance.now();
 
   try {
@@ -2537,7 +3081,7 @@ async function handleCommand(rawInput) {
       responseText = handleTimerCommand(input);
     } else if (forgetCommand) {
       responseText = handleForgetCommand(input);
-    } else if (!isLiveAI) {
+    } else if (!isLiveAI && !useLocalAI) {
       await new Promise((resolve) => setTimeout(resolve, 50));
       responseText = await localResponse(input);
     } else {
@@ -2582,9 +3126,10 @@ function enterCommandMode() {
   clearTimeout(state.commandTimer);
   state.voiceMode = "command";
   state.listening = true;
+  state.userStoppedRecognition = false;
   elements.voiceButton.classList.remove("armed");
   elements.voiceButton.classList.add("active");
-  elements.assistantStatus.textContent = "Yes? I’m listening.";
+  elements.assistantStatus.textContent = "Yes? I\u2019m listening.";
   elements.voiceSupport.textContent = "VOICE ACTIVE";
   setOrbState("listening", "LISTENING");
   playWakeTone();
@@ -2597,7 +3142,7 @@ function enterCommandMode() {
     elements.voiceButton.classList.add("armed");
     elements.assistantStatus.textContent = "Wake-word monitoring resumed.";
     elements.voiceSupport.textContent = "WAKE READY";
-    setOrbState("wake-listening", "SAY “AURA”");
+    setOrbState("wake-listening", "SAY \u201CAURA\u201D");
   }, 5000);
 }
 
@@ -2628,6 +3173,132 @@ function setupLanguageSelector() {
     elements.assistantStatus.textContent = `Voice recognition set to ${label}.`;
     addActivity(`Recognition language: ${label}`);
   });
+}
+
+function updateModelHero() {
+  const activeTitle = document.querySelector("#active-model-title");
+  const providerEl = document.querySelector("#model-provider");
+  if (!activeTitle) return;
+
+  const current = state.currentModel || "nemotron-3-ultra";
+  const label = elements.modelSelect?.selectedOptions[0]?.textContent || current;
+
+  if (current.includes("nemotron")) {
+    activeTitle.textContent = label.split(" (")[0] || "Nemotron 3 Ultra";
+    if (providerEl) providerEl.textContent = "PROVIDER: NVIDIA";
+  } else if (current.includes("gpt")) {
+    activeTitle.textContent = label.split(" (")[0] || "GPT-4o";
+    if (providerEl) providerEl.textContent = "PROVIDER: OPENAI";
+  } else if (current.includes("claude")) {
+    activeTitle.textContent = label.split(" (")[0] || "Claude 3.5 Sonnet";
+    if (providerEl) providerEl.textContent = "PROVIDER: ANTHROPIC";
+  } else if (current.includes("gemini") || current.includes("gemma")) {
+    activeTitle.textContent = label.split(" (")[0] || "Gemini 1.5 Pro";
+    if (providerEl) providerEl.textContent = "PROVIDER: GOOGLE";
+  } else if (typeof LOCAL_MODELS !== "undefined" && LOCAL_MODELS[current]) {
+    activeTitle.textContent = label.split(" (")[0] || "Phi-3 Mini";
+    if (providerEl) providerEl.textContent = "PROVIDER: LOCAL";
+  } else {
+    activeTitle.textContent = "AURA Neural Prime";
+    if (providerEl) providerEl.textContent = "PROVIDER: LOCAL";
+  }
+}
+
+function setupModelSelector() {
+  if (!elements.modelSelect) return;
+  
+  fetch("/api/models")
+    .then(r => r.json())
+    .then(models => {
+      elements.modelSelect.innerHTML = "";
+      for (const [key, value] of Object.entries(models)) {
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = `${key} (${value})`;
+        elements.modelSelect.appendChild(opt);
+      }
+      if (state.currentModel) {
+        elements.modelSelect.value = state.currentModel;
+      }
+      updateModelHero();
+    })
+    .catch(() => {
+      updateModelHero();
+    });
+
+  elements.modelSelect.addEventListener("change", () => {
+    state.currentModel = elements.modelSelect.value;
+    saveState();
+    updateModelHero();
+    addActivity(`Model changed to ${state.currentModel}`);
+    elements.assistantStatus.textContent = `AI model: ${state.currentModel}`;
+  });
+
+  // Manage Data Panel Toggle
+  const manageBtn = document.querySelector("#manage-data-btn");
+  const actionsPanel = document.querySelector("#data-actions-panel");
+  if (manageBtn && actionsPanel) {
+    manageBtn.addEventListener("click", () => {
+      const isHidden = actionsPanel.style.display === "none" || actionsPanel.hidden;
+      if (isHidden) {
+        actionsPanel.hidden = false;
+        actionsPanel.style.display = "grid";
+        manageBtn.classList.add("active");
+        addActivity("Local data management opened");
+      } else {
+        actionsPanel.hidden = true;
+        actionsPanel.style.display = "none";
+        manageBtn.classList.remove("active");
+      }
+      playUiSound("click");
+    });
+  }
+}
+
+async function handleToolCalls(toolCalls) {
+  for (const call of toolCalls) {
+    const { name, arguments: args } = call.function;
+    try {
+      const parsed = JSON.parse(args);
+      let result = null;
+      
+      switch (name) {
+        case "get_weather":
+          result = await fetchWeather(parsed.city);
+          break;
+        case "get_news":
+          result = await fetchNews(parsed.query);
+          break;
+        case "set_timer":
+          result = setTimer(parsed.duration, parsed.type);
+          break;
+        case "add_task":
+          result = addTask(parsed.text);
+          break;
+        case "add_reminder":
+          result = addReminder(parsed.text, parsed.dueAt);
+          break;
+        case "search_memory":
+          result = searchMemory(parsed.query);
+          break;
+        default:
+          result = { error: `Unknown function: ${name}` };
+      }
+      
+      // Send function result back
+      await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: state.history.slice(-12),
+          model: state.currentModel || "nemotron-3-ultra",
+          functionResult: { name, result },
+        }),
+      });
+    } catch (e) {
+      console.error("Tool call error:", e);
+    }
+  }
 }
 
 function setupVoiceRecognition() {
@@ -2717,11 +3388,16 @@ function setupVoiceRecognition() {
     }
   };
 
-  state.recognition.onend = () => {
+state.recognition.onend = () => {
     state.recognitionActive = false;
     state.listening = false;
     elements.voiceButton.classList.remove("active", "armed");
     clearTimeout(state.commandTimer);
+
+    if (state.userStoppedRecognition) {
+      state.userStoppedRecognition = false;
+      return;
+    }
 
     if (state.pendingVoiceCommand) {
       const command = state.pendingVoiceCommand;
@@ -2732,7 +3408,7 @@ function setupVoiceRecognition() {
 
     if (!state.busy && !state.pauseWakeForSpeech) {
       if (state.wakeEnabled) elements.voiceSupport.textContent = "ARMING";
-      setOrbState("", state.wakeEnabled ? "SAY “AURA”" : "TAP TO SPEAK");
+      setOrbState("", state.wakeEnabled ? "SAY \u201CAURA\u201D" : "TAP TO SPEAK");
       scheduleWakeRestart();
     }
   };
@@ -2753,11 +3429,13 @@ function toggleListening() {
 
   if (state.recognitionActive && state.voiceMode === "command") {
     state.pendingVoiceCommand = "";
+    state.userStoppedRecognition = true;
     state.recognition.stop();
   } else if (state.recognitionActive) {
     enterCommandMode();
   } else {
     state.voiceMode = "command";
+    state.userStoppedRecognition = false;
     window.speechSynthesis?.cancel();
     state.pauseWakeForSpeech = false;
     try {
@@ -2794,6 +3472,11 @@ async function checkServerStatus() {
       state.liveNews ? "News API credential loaded" : "Add NEWS_API_KEY to .env for news",
       !state.liveNews,
     );
+    
+    // Load available models
+    if (state.liveAI && data.availableModels) {
+      await loadModels(data.availableModels);
+    }
   } catch {
     elements.connectionLabel.textContent = "LOCAL SESSION";
     elements.modeLabel.textContent = "OFFLINE CORE";
@@ -2801,183 +3484,577 @@ async function checkServerStatus() {
   }
 }
 
-function setupCanvas() {
-  const canvas = document.querySelector("#neural-canvas");
-  const context = canvas.getContext("2d");
-  let points = [];
-  let animationFrame;
-  let pulsePhase = 0;
-  
-  // Advanced particle system
-  const particles = [];
-  const maxParticles = 120;
-  
-  // Grid pattern for holographic effect
-  const gridSize = 60;
-  const gridSpacing = 40;
-  
-  function resize() {
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = window.innerWidth * ratio;
-    canvas.height = window.innerHeight * ratio;
-    canvas.style.width = `${window.innerWidth}px`;
-    canvas.style.height = `${window.innerHeight}px`;
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-    const pointCount = Math.min(120, Math.floor(window.innerWidth / 14));
-    points = Array.from({ length: pointCount }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      vx: (Math.random() - 0.5) * 0.08,
-      vy: (Math.random() - 0.5) * 0.08,
-      size: Math.random() * 1.2 + 0.3,
-      hue: Math.random() * 360,
-      trail: []
-    }));
+async function loadModels(availableModels) {
+  try {
+    const modelSelect = document.getElementById("model-select");
+    const modelProvider = document.getElementById("model-provider");
+    const modelType = document.getElementById("model-type");
     
-    // Initialize advanced particles
-    for (let i = 0; i < maxParticles; i++) {
-      particles.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        vx: (Math.random() - 0.5) * 0.15,
-        vy: (Math.random() - 0.5) * 0.15,
-        vz: (Math.random() - 0.5) * 0.03,
-        size: Math.random() * 1.5 + 0.5,
-        hue: Math.random() * 360,
-        hueSpeed: Math.random() * 0.8 - 0.4,
-        trail: []
+    if (!modelSelect) return;
+    
+    // Fetch detailed model info
+    const response = await fetch("/api/models");
+    const models = await response.json();
+    
+    state.availableModels = models;
+    
+    // Update model info on change
+    modelSelect.addEventListener("change", () => {
+      const modelKey = modelSelect.value;
+      state.currentModel = modelKey;
+      saveState();
+      
+      const modelId = models[modelKey] || '';
+      const isLocal = !!LOCAL_MODELS[modelKey];
+      const isFree = modelId.includes(':free') || modelId === 'openrouter/free';
+      
+      if (isLocal) {
+        const local = LOCAL_MODELS[modelKey];
+        modelProvider.textContent = `Provider: ${local.provider}`;
+        modelType.textContent = `LOCAL (${local.size})`;
+        modelType.className = 'local-badge';
+      } else {
+        const provider = modelId.split('/')[0] || 'OpenRouter';
+        modelProvider.textContent = `Provider: ${provider}`;
+        modelType.textContent = isFree ? 'FREE' : 'PREMIUM';
+        modelType.className = isFree ? 'free-badge' : 'premium-badge';
+      }
+      
+      elements.modeLabel.textContent = modelKey.toUpperCase();
+      addActivity(`Model switched to ${modelKey}`);
+    });
+    
+    // Set saved model
+    if (state.currentModel && modelSelect.querySelector(`option[value="${state.currentModel}"]`)) {
+      modelSelect.value = state.currentModel;
+      modelSelect.dispatchEvent(new Event('change'));
+    }
+  } catch (e) {
+    console.error('Failed to load models:', e);
+  }
+}
+
+
+
+function setupCognitiveBrainCanvas() {
+  const canvas = document.querySelector("#cognitive-brain-canvas");
+  if (!canvas || !canvas.parentElement) return;
+  const ctx = canvas.getContext("2d");
+  let nodes = [];
+  let impulses = [];
+  let animFrame;
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    const w = rect.width;
+    const h = rect.height;
+
+    nodes = [];
+    const count = 46;
+    for (let i = 0; i < count; i++) {
+      const hemisphere = i % 2 === 0 ? -1 : 1;
+      const angle = (Math.random() * Math.PI * 1.8) - 0.9;
+      const radiusX = Math.random() * (w * 0.28) + (w * 0.08);
+      const radiusY = Math.random() * (h * 0.3) + (h * 0.06);
+      
+      const x = (w * 0.5) + (hemisphere * (Math.cos(angle) * radiusX + (w * 0.04)));
+      const y = (h * 0.44) + (Math.sin(angle) * radiusY);
+
+      nodes.push({
+        x,
+        y,
+        baseX: x,
+        baseY: y,
+        pulseOffset: Math.random() * Math.PI * 2,
+        pulseSpeed: Math.random() * 0.03 + 0.015,
+        radius: Math.random() * 2 + 1.4,
+        color: Math.random() > 0.25 ? "rgba(46, 230, 197, " : "rgba(232, 199, 107, "
       });
     }
   }
 
   function draw() {
-    const time = Date.now() * 0.001;
-    context.clearRect(0, 0, window.innerWidth, window.innerHeight);
-    pulsePhase += 0.01;
-    
-    // Draw holographic grid
-    context.strokeStyle = "rgba(0, 255, 209, 0.08)";
-    context.lineWidth = 0.5;
-    
-    for (let x = 0; x < window.innerWidth; x += gridSpacing) {
-      for (let y = 0; y < window.innerHeight; y += gridSpacing) {
-        const offset = Math.sin(time * 0.5 + x * 0.01) * Math.cos(time * 0.3 + y * 0.01);
-        context.beginPath();
-        context.moveTo(x, y);
-        context.lineTo(x + gridSize * Math.cos(time + x * 0.005), y + gridSize * Math.sin(time + y * 0.005));
-        context.stroke();
-      }
+    const w = canvas.parentElement.clientWidth;
+    const h = canvas.parentElement.clientHeight;
+    if (w === 0 || h === 0) {
+      animFrame = requestAnimationFrame(draw);
+      return;
     }
-    
-    // Draw neural network connections
-    points.forEach((point, index) => {
-      point.x += point.vx;
-      point.y += point.vy;
-      point.hue += point.hueSpeed || 0.01;
-      
-      if (point.x < 0 || point.x > window.innerWidth) point.vx *= -1;
-      if (point.y < 0 || point.y > window.innerHeight) point.vy *= -1;
-      
-      // Store trail
-      point.trail.push({ x: point.x, y: point.y, age: 0 });
-      if (point.trail.length > 8) point.trail.shift();
-      point.trail.forEach(t => t.age++);
-      
-      // Draw trail
-      point.trail.forEach((trail, i) => {
-        const alpha = (1 - i / 8) * 0.3;
-        context.beginPath();
-        context.fillStyle = `hsla(${point.hue % 360}, 80%, 70%, ${alpha})`;
-        context.arc(trail.x, trail.y, point.size * (0.5 - i / 16), 0, Math.PI * 2);
-        context.fill();
-      });
-      
-      // Draw particle with glow
-      const alpha = 0.7 + Math.sin(time + index) * 0.3;
-      context.beginPath();
-      context.fillStyle = `hsla(${(point.hue % 360) + 180}, 80%, 75%, ${alpha})`;
-      context.arc(point.x, point.y, point.size, 0, Math.PI * 2);
-      context.fill();
-      
-      // Add glow effect
-      const gradient = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, point.size * 3);
-      gradient.addColorStop(0, `hsla(${(point.hue % 360) + 180}, 100%, 90%, ${alpha * 0.5})`);
-      gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-      context.fillStyle = gradient;
-      context.fill();
-      
-      // Draw connections to nearby particles
-      for (let otherIndex = index + 1; otherIndex < points.length; otherIndex += 1) {
-        const other = points[otherIndex];
-        const distance = Math.hypot(point.x - other.x, point.y - other.y);
-        if (distance < 150) {
-          const lineAlpha = (1 - distance / 150) * 0.2;
-          context.beginPath();
-          context.strokeStyle = `hsla(${(point.hue % 360) + 180}, 80%, 70%, ${lineAlpha})`;
-          context.lineWidth = 0.8;
-          context.moveTo(point.x, point.y);
-          context.lineTo(other.x, other.y);
-          context.stroke();
+    ctx.clearRect(0, 0, w, h);
+    const time = Date.now() * 0.001;
+
+    // Subtle floating
+    nodes.forEach((n) => {
+      n.x = n.baseX + Math.sin(time * 1.4 + n.pulseOffset) * 5;
+      n.y = n.baseY + Math.cos(time * 1.1 + n.pulseOffset) * 5;
+    });
+
+    // Draw neural connections
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const n1 = nodes[i];
+        const n2 = nodes[j];
+        const dist = Math.hypot(n1.x - n2.x, n1.y - n2.y);
+        if (dist < 105) {
+          const alpha = (1 - dist / 105) * 0.3;
+          ctx.strokeStyle = `rgba(46, 230, 197, ${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(n1.x, n1.y);
+          ctx.lineTo(n2.x, n2.y);
+          ctx.stroke();
+
+          if (Math.random() < 0.004 && impulses.length < 16) {
+            impulses.push({
+              x1: n1.x,
+              y1: n1.y,
+              x2: n2.x,
+              y2: n2.y,
+              progress: 0,
+              speed: Math.random() * 0.02 + 0.015,
+              color: n1.color
+            });
+          }
         }
       }
+    }
+
+    // Animate data flow impulses
+    impulses.forEach((imp) => {
+      imp.progress += imp.speed;
+      const curX = imp.x1 + (imp.x2 - imp.x1) * imp.progress;
+      const curY = imp.y1 + (imp.y2 - imp.y1) * imp.progress;
+      ctx.fillStyle = imp.color + "0.95)";
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = "rgba(46, 230, 197, 0.8)";
+      ctx.beginPath();
+      ctx.arc(curX, curY, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
     });
-    
-    // Draw advanced particles
-    particles.forEach(particle => {
-      particle.x += particle.vx;
-      particle.y += particle.vy;
-      particle.z += particle.vz;
-      particle.hue += particle.hueSpeed;
-      
-      if (particle.x < -50 || particle.x > window.innerWidth + 50) particle.vx *= -1;
-      if (particle.y < -50 || particle.y > window.innerHeight + 50) particle.vy *= -1;
-      
-      const trail = [];
-      for (let i = 0; i < 10; i++) {
-        trail.push({
-          x: particle.x - particle.vx * i * 0.5,
-          y: particle.y - particle.vy * i * 0.5,
-          age: i
-        });
+    impulses = impulses.filter((imp) => imp.progress <= 1);
+
+    // Draw nodes with distinct pulsing
+    nodes.forEach((n) => {
+      const pulse = Math.sin(time * 3 + n.pulseOffset);
+      const alpha = 0.45 + pulse * 0.4;
+      const r = n.radius + pulse * 0.6;
+
+      ctx.fillStyle = `${n.color}${alpha})`;
+      ctx.shadowBlur = 7;
+      ctx.shadowColor = n.color + "0.6)";
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, Math.max(1, r), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    animFrame = requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener("resize", resize);
+  draw();
+}
+
+function setupNeuralCoreSynapseCanvas() {
+  const canvas = document.querySelector("#neural-core-synapse-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = 260;
+  const h = 260;
+  const cx = 130;
+  const cy = 130;
+
+  const coreNodes = [];
+  for (let i = 0; i < 26; i++) {
+    const angle = (i / 26) * Math.PI * 2 + (Math.random() * 0.3);
+    const rad = Math.random() * 65 + 35;
+    coreNodes.push({
+      x: cx + Math.cos(angle) * rad,
+      y: cy + Math.sin(angle) * rad,
+      baseAngle: angle,
+      baseRad: rad,
+      pulseOffset: Math.random() * Math.PI * 2,
+      size: Math.random() * 1.8 + 1.2,
+      color: i % 4 === 0 ? "rgba(232, 199, 107, " : "rgba(46, 230, 197, "
+    });
+  }
+
+  let packetTracers = [];
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    const time = Date.now() * 0.001;
+
+    coreNodes.forEach((n, idx) => {
+      const curAngle = n.baseAngle + (time * 0.08 * (idx % 2 === 0 ? 1 : -1));
+      const curRad = n.baseRad + Math.sin(time * 2 + n.pulseOffset) * 3.5;
+      n.x = cx + Math.cos(curAngle) * curRad;
+      n.y = cy + Math.sin(curAngle) * curRad;
+    });
+
+    for (let i = 0; i < coreNodes.length; i++) {
+      for (let j = i + 1; j < coreNodes.length; j++) {
+        const n1 = coreNodes[i];
+        const n2 = coreNodes[j];
+        const dist = Math.hypot(n1.x - n2.x, n1.y - n2.y);
+        if (dist < 60) {
+          const alpha = (1 - dist / 60) * 0.4;
+          ctx.strokeStyle = `rgba(46, 230, 197, ${alpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(n1.x, n1.y);
+          ctx.lineTo(n2.x, n2.y);
+          ctx.stroke();
+
+          if (Math.random() < 0.006 && packetTracers.length < 10) {
+            packetTracers.push({
+              x1: n1.x,
+              y1: n1.y,
+              x2: n2.x,
+              y2: n2.y,
+              prog: 0,
+              speed: Math.random() * 0.03 + 0.015,
+              color: n1.color
+            });
+          }
+        }
       }
-      
-      trail.forEach((t, i) => {
-        const alpha = (1 - i / 10) * 0.4;
-        context.beginPath();
-        context.fillStyle = `hsla(${particle.hue % 360}, 70%, 80%, ${alpha})`;
-        context.arc(t.x, t.y, particle.size * (0.5 - i / 20), 0, Math.PI * 2);
-        context.fill();
-      });
-      
-      // Main particle
-      context.save();
-      context.globalAlpha = 0.8;
-      context.beginPath();
-      context.fillStyle = `hsla(${particle.hue % 360}, 90%, 90%, 0.9)`;
-      context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-      context.fill();
-      
-      // Pulse effect
-      const pulse = 1 + Math.sin(time * 3 + particle.x * 0.01) * 0.2;
-      context.beginPath();
-      context.arc(particle.x, particle.y, particle.size * pulse, 0, Math.PI * 2);
-      context.strokeStyle = `hsla(${particle.hue % 360}, 100%, 95%, 0.6)`;
-      context.lineWidth = 1;
-      context.stroke();
-      context.restore();
+    }
+
+    packetTracers.forEach((p) => {
+      p.prog += p.speed;
+      const px = p.x1 + (p.x2 - p.x1) * p.prog;
+      const py = p.y1 + (p.y2 - p.y1) * p.prog;
+      ctx.fillStyle = p.color + "1)";
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = "rgba(46, 230, 197, 0.8)";
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
     });
+    packetTracers = packetTracers.filter((p) => p.prog <= 1);
+
+    coreNodes.forEach((n) => {
+      const pulse = Math.sin(time * 3 + n.pulseOffset);
+      const alpha = 0.5 + pulse * 0.4;
+      ctx.fillStyle = `${n.color}${alpha})`;
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = n.color + "0.6)";
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.size + pulse * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+}
+
+function setupNetworkGraph() {
+  const canvas = document.querySelector("#network-graph");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  let phase = 0;
+  let packets = [];
+
+  function resize() {
+    canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+    canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
+    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+  }
+
+  function draw() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (w === 0 || h === 0) {
+      requestAnimationFrame(draw);
+      return;
+    }
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw grid
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.08)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 24) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 20) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // Sine waveform
+    phase += 0.04;
+    ctx.strokeStyle = "#00f0ff";
+    ctx.lineWidth = 1.8;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = "rgba(0, 240, 255, 0.6)";
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const y = h / 2 + Math.sin(x * 0.04 + phase) * 16 * Math.sin(x * 0.008 + phase * 0.4) + (Math.random() - 0.5) * 1.5;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Pulse packets
+    if (Math.random() < 0.04 && packets.length < 5) {
+      packets.push({ x: 0, speed: Math.random() * 2.5 + 2 });
+    }
+    packets.forEach((p) => {
+      p.x += p.speed;
+      ctx.fillStyle = "#00ff9d";
+      ctx.beginPath();
+      ctx.arc(p.x, h / 2 + Math.sin(p.x * 0.04 + phase) * 16, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    packets = packets.filter((p) => p.x < w);
+
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener("resize", resize);
+  draw();
+}
+
+function setupDiagnosticsLoop() {
+  const cpuEl = document.querySelector("#diag-cpu");
+  const gpuEl = document.querySelector("#diag-gpu");
+  const ramEl = document.querySelector("#diag-ram");
+  const diskEl = document.querySelector("#diag-disk");
+  const pingEl = document.querySelector("#ping-value");
+  const tpEl = document.querySelector("#throughput-value");
+
+  setInterval(() => {
+    if (document.hidden) return;
     
-    // Draw radar sweep
-    const radarRadius = Math.min(window.innerWidth, window.innerHeight) * 0.3;
-    const radarAngle = time * 0.5;
-    context.strokeStyle = "rgba(0, 255, 209, 0.3)";
-    context.lineWidth = 1.5;
-    context.beginPath();
-    context.moveTo(window.innerWidth / 2, window.innerHeight - 100);
-    context.arc(window.innerWidth / 2, window.innerHeight - 100, radarRadius, 0, radarAngle);
-    context.stroke();
-    
+    const neuralLoad = Math.floor(82 + Math.random() * 8 + (state.busy ? 10 : 0));
+    const neuralEl = document.querySelector("#neural-load-text");
+    if (neuralEl) {
+      neuralEl.innerHTML = `${neuralLoad}<small>%</small>`;
+      const fill = neuralEl.closest(".tech-metric-row")?.querySelector(".tech-progress-bar");
+      if (fill) fill.style.width = `${neuralLoad}%`;
+    }
+
+    const cpu = Math.floor(18 + Math.random() * 16 + (state.busy ? 42 : 0));
+    const gpu = Math.floor(34 + Math.random() * 22 + (state.busy ? 38 : 0));
+    const ram = Math.floor(36 + Math.random() * 6);
+    const disk = Math.floor(10 + Math.random() * 8);
+
+    if (cpuEl) {
+      cpuEl.innerHTML = `${cpu}<span>%</span>`;
+      const fill = cpuEl.parentElement?.querySelector(".diag-bar-fill");
+      if (fill) fill.style.width = `${cpu}%`;
+    }
+    if (gpuEl) {
+      gpuEl.innerHTML = `${gpu}<span>%</span>`;
+      const fill = gpuEl.parentElement?.querySelector(".diag-bar-fill");
+      if (fill) fill.style.width = `${gpu}%`;
+    }
+    if (ramEl) {
+      ramEl.innerHTML = `${ram}<span>%</span>`;
+      const fill = ramEl.parentElement?.querySelector(".diag-bar-fill");
+      if (fill) fill.style.width = `${ram}%`;
+    }
+    if (diskEl) {
+      diskEl.innerHTML = `${disk}<span>%</span>`;
+      const fill = diskEl.parentElement?.querySelector(".diag-bar-fill");
+      if (fill) fill.style.width = `${disk}%`;
+    }
+
+    if (pingEl) {
+      const ping = Math.floor(11 + Math.random() * 8);
+      pingEl.innerHTML = `${ping}<small>ms</small>`;
+    }
+    if (tpEl) {
+      const tp = (2.1 + Math.random() * 1.8).toFixed(1);
+      tpEl.innerHTML = `${tp}<small>Mb/s</small>`;
+    }
+  }, 2500);
+}
+
+
+function setupCanvas() {
+  const neuralCanvas = document.querySelector("#neural-canvas");
+  const particleCanvas = document.querySelector("#particle-canvas");
+  const radarCanvas = document.querySelector("#radar-sweep");
+  const gridCanvas = document.querySelector("#grid-canvas");
+  
+  const nCtx = neuralCanvas?.getContext("2d");
+  const pCtx = particleCanvas?.getContext("2d");
+  const rCtx = radarCanvas?.getContext("2d");
+  const gCtx = gridCanvas?.getContext("2d");
+
+  let points = [];
+  let stellarParticles = [];
+  let animationFrame;
+  let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+  window.addEventListener("mousemove", (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  function resize() {
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    [neuralCanvas, particleCanvas, radarCanvas, gridCanvas].forEach(canv => {
+      if (canv) {
+        canv.width = w * ratio;
+        canv.height = h * ratio;
+        canv.style.width = `${w}px`;
+        canv.style.height = `${h}px`;
+      }
+    });
+
+    if (nCtx) nCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (pCtx) pCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (rCtx) rCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (gCtx) gCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    const pointCount = Math.min(90, Math.floor(w / 18));
+    points = Array.from({ length: pointCount }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      size: Math.random() * 2 + 1,
+      color: Math.random() > 0.3 ? "rgba(0, 240, 255, " : "rgba(168, 85, 247, "
+    }));
+
+    stellarParticles = Array.from({ length: 140 }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      z: Math.random() * 3 + 0.5,
+      size: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.6 + 0.2
+    }));
+  }
+
+  function draw() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const time = Date.now() * 0.001;
+
+    // 1. Draw Starfield Parallax Particles
+    if (pCtx) {
+      pCtx.clearRect(0, 0, w, h);
+      stellarParticles.forEach((p) => {
+        p.y -= 0.15 * p.z;
+        if (p.y < 0) p.y = h;
+        const pX = p.x + (mouse.x - w / 2) * 0.01 * p.z;
+        pCtx.fillStyle = `rgba(200, 235, 255, ${p.alpha * (0.6 + Math.sin(time * 2 + p.x) * 0.4)})`;
+        pCtx.beginPath();
+        pCtx.arc((pX + w) % w, p.y, p.size, 0, Math.PI * 2);
+        pCtx.fill();
+      });
+    }
+
+    // 2. Draw Synaptic Neural Canvas
+    if (nCtx) {
+      nCtx.clearRect(0, 0, w, h);
+
+      points.forEach((pt, i) => {
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        if (pt.x < 0 || pt.x > w) pt.vx *= -1;
+        if (pt.y < 0 || pt.y > h) pt.vy *= -1;
+
+        // Gravitational attraction to mouse
+        const dx = mouse.x - pt.x;
+        const dy = mouse.y - pt.y;
+        const distToMouse = Math.hypot(dx, dy);
+        if (distToMouse < 180) {
+          pt.x += (dx / distToMouse) * 0.3;
+          pt.y += (dy / distToMouse) * 0.3;
+        }
+
+        // Draw connections
+        for (let j = i + 1; j < points.length; j++) {
+          const p2 = points[j];
+          const dist = Math.hypot(pt.x - p2.x, pt.y - p2.y);
+          if (dist < 130) {
+            const alpha = (1 - dist / 130) * 0.25;
+            nCtx.strokeStyle = `${pt.color}${alpha})`;
+            nCtx.lineWidth = 0.9;
+            nCtx.beginPath();
+            nCtx.moveTo(pt.x, pt.y);
+            nCtx.lineTo(p2.x, p2.y);
+            nCtx.stroke();
+          }
+        }
+
+        // Draw node
+        nCtx.fillStyle = `${pt.color}0.85)`;
+        nCtx.shadowBlur = 8;
+        nCtx.shadowColor = pt.color + "0.6)";
+        nCtx.beginPath();
+        nCtx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+        nCtx.fill();
+        nCtx.shadowBlur = 0;
+      });
+    }
+
+    // 3. Draw Radar Sweep
+    if (rCtx) {
+      rCtx.clearRect(0, 0, w, h);
+      const cx = w * 0.5;
+      const cy = h * 0.38;
+      const radius = Math.min(w, h) * 0.28;
+      const angle = (time * 0.8) % (Math.PI * 2);
+
+      rCtx.save();
+      rCtx.translate(cx, cy);
+
+      // Range rings
+      rCtx.strokeStyle = "rgba(0, 240, 255, 0.06)";
+      rCtx.lineWidth = 1;
+      [0.33, 0.66, 1].forEach((r) => {
+        rCtx.beginPath();
+        rCtx.arc(0, 0, radius * r, 0, Math.PI * 2);
+        rCtx.stroke();
+      });
+
+      // Sweep gradient sector
+      const sweepGrad = rCtx.createConicGradient(angle, 0, 0);
+      sweepGrad.addColorStop(0, "rgba(0, 240, 255, 0.12)");
+      sweepGrad.addColorStop(0.1, "rgba(0, 240, 255, 0)");
+      sweepGrad.addColorStop(1, "rgba(0, 240, 255, 0)");
+      rCtx.fillStyle = sweepGrad;
+      rCtx.beginPath();
+      rCtx.arc(0, 0, radius, 0, Math.PI * 2);
+      rCtx.fill();
+
+      // Sweep line
+      rCtx.strokeStyle = "rgba(0, 240, 255, 0.35)";
+      rCtx.lineWidth = 1.5;
+      rCtx.beginPath();
+      rCtx.moveTo(0, 0);
+      rCtx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      rCtx.stroke();
+
+      rCtx.restore();
+    }
+
     animationFrame = requestAnimationFrame(draw);
   }
 
@@ -2985,17 +4062,16 @@ function setupCanvas() {
   draw();
   window.addEventListener("resize", resize);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      cancelAnimationFrame(animationFrame);
-    } else {
-      draw();
-    }
+    if (document.hidden) cancelAnimationFrame(animationFrame);
+    else draw();
   });
 }
 
+
 elements.commandForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  handleCommand(elements.commandInput.value);
+  playUiSound("execute");
+handleCommand(elements.commandInput.value);
 });
 
 elements.voiceButton.addEventListener("click", toggleListening);
@@ -3160,51 +4236,113 @@ document.addEventListener("visibilitychange", () => {
   scheduleWakeRestart();
 });
 
-updateClock();
-setInterval(updateClock, 1000);
-updateMemoryCount();
-updateTaskDisplay();
-updateReminderDisplay();
-checkDueReminders();
-setInterval(() => {
+document.addEventListener("DOMContentLoaded", async () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  updateMemoryCount();
   updateTaskDisplay();
   updateReminderDisplay();
   checkDueReminders();
-}, 30_000);
-updateHandsFreeControl();
-restoreHistory();
-setupLanguageSelector();
-setupVoiceRecognition();
-setupCanvas();
-checkServerStatus();
-renderMemoryList();
-updateTimerDisplay();
-if (state.weatherCity) {
-  fetchWeather(state.weatherCity).then(updateWeatherDisplay).catch(() => {});
-}
-updateSecurityCardStatus();
-await initEnhancedAuth();
-setupFaceAuth();
+  setInterval(() => {
+    updateTaskDisplay();
+    updateReminderDisplay();
+    checkDueReminders();
+  }, 30_000);
+  updateHandsFreeControl();
+  restoreHistory();
+  setupLanguageSelector();
+  setupVoiceRecognition();
+  setupCanvas();
 
-// Add PIN entry command handler
-function addPinEntryHandlers() {
-  // Will be triggered by voice command or UI
-  window.showPinEntry = async () => {
-    const pin = prompt("Enter your PIN:");
-    if (!pin) return;
-    
-    try {
-      const result = await auraAuth.authenticate('pin', { pin });
-      if (result.success) {
-        auraAuth.unlock('pin');
-        unlockApp();
-        addActivity("PIN authentication successful");
+  // SFX and Fullscreen Topbar utilities
+  const sfxBtn = document.querySelector("#sfx-toggle");
+  if (sfxBtn) {
+    sfxBtn.classList.toggle("active", sfxState.enabled);
+    sfxBtn.addEventListener("click", () => {
+      sfxState.enabled = !sfxState.enabled;
+      localStorage.setItem("aura.sfx.enabled", JSON.stringify(sfxState.enabled));
+      sfxBtn.classList.toggle("active", sfxState.enabled);
+      if (sfxState.enabled) playUiSound("click");
+      addActivity(`Audio SFX feedback ${sfxState.enabled ? "enabled" : "muted"}`);
+    });
+  }
+
+  const fsBtn = document.querySelector("#fullscreen-toggle");
+  if (fsBtn) {
+    fsBtn.addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        fsBtn.classList.add("active");
+      } else {
+        document.exitFullscreen().catch(() => {});
+        fsBtn.classList.remove("active");
       }
-    } catch (e) {
-      alert(`PIN error: ${e.message}`);
-      addActivity(`PIN auth failed: ${e.message}`, true);
-    }
-  };
-}
+    });
+  }
 
-addPinEntryHandlers();
+  // Add click sound effects to all interactive buttons
+  document.querySelectorAll("button, .suggestion-chip, .quick-command, .mode-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => playUiSound("click"));
+    btn.addEventListener("mouseenter", () => playUiSound("hover"));
+  });
+
+  setupNetworkGraph();
+  setupCognitiveBrainCanvas();
+  setupNeuralCoreSynapseCanvas();
+  setupDiagnosticsLoop();
+
+  // Populate main AURA command input when clicking quick command
+  document.querySelectorAll(".quick-command").forEach((button) => {
+    button.addEventListener("click", () => {
+      const cmd = button.dataset.command;
+      if (elements.commandInput) {
+        elements.commandInput.value = cmd;
+        elements.commandInput.focus();
+        elements.commandInput.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      playUiSound("click");
+    });
+  });
+
+
+  await checkServerStatus();
+  setupModelSelector();
+  renderMemoryList();
+  updateTimerDisplay();
+  if (state.weatherCity) {
+    fetchWeather(state.weatherCity).then(updateWeatherDisplay).catch(() => {});
+  }
+  updateSecurityCardStatus();
+  await initEnhancedAuth();
+  // Don't setup face auth on initial load - wait for lock
+  // setupFaceAuth();
+
+  // Add lock screen handler for auth-enhanced.js
+  window.showLockScreen = (reason) => {
+    console.log('[Auth] window.showLockScreen called, reason:', reason);
+    handleAuthLock(reason);
+  };
+
+  // Add PIN entry command handler
+  function addPinEntryHandlers() {
+    // Will be triggered by voice command or UI
+    window.showPinEntry = async () => {
+      const pin = prompt("Enter your PIN:");
+      if (!pin) return;
+      
+      try {
+        const result = await auraAuth.authenticate('pin', { pin });
+        if (result.success) {
+          auraAuth.unlock('pin');
+          unlockApp();
+          addActivity("PIN authentication successful");
+        }
+      } catch (e) {
+        alert(`PIN error: ${e.message}`);
+        addActivity(`PIN auth failed: ${e.message}`, true);
+      }
+    };
+  }
+
+  addPinEntryHandlers();
+});

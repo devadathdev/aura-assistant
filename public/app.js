@@ -1686,11 +1686,27 @@ function addMessage(role, text, persist = true) {
   const avatar = fragment.querySelector(".message-avatar");
   const name = fragment.querySelector(".message-name");
   const paragraph = fragment.querySelector("p");
+  const actions = fragment.querySelector(".message-actions");
 
   article.classList.add(role === "user" ? "user-message" : "assistant-message");
   avatar.textContent = role === "user" ? "Y" : "A";
   name.textContent = role === "user" ? "YOU" : "AURA";
   paragraph.textContent = text;
+  
+  if (role === "assistant") {
+    actions.style.display = "flex";
+    const msgId = `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    article.dataset.messageId = msgId;
+    article.dataset.messageText = text;
+    
+    actions.querySelectorAll(".feedback-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleFeedback(msgId, text, btn.dataset.rating, btn.classList.contains("feedback-correct"));
+      });
+    });
+  }
+  
   elements.conversation.appendChild(fragment);
   elements.conversation.scrollTop = elements.conversation.scrollHeight;
 
@@ -1699,6 +1715,56 @@ function addMessage(role, text, persist = true) {
     state.history = state.history.slice(-20);
     saveState();
   }
+}
+
+async function handleFeedback(messageId, responseText, rating, isCorrection) {
+  if (isCorrection) {
+    const correction = prompt("What should AURA have said instead?");
+    if (!correction) return;
+    
+    try {
+      await fetch("/api/learning/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: getLastUserInput(),
+          expectedOutput: correction,
+          actualOutput: responseText,
+          rating: parseInt(rating),
+          tags: ["correction"]
+        })
+      });
+      addActivity("Learning: Correction submitted");
+    } catch (e) {
+      console.error("Feedback error:", e);
+    }
+    return;
+  }
+  
+  try {
+    await fetch("/api/learning/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: getLastUserInput(),
+        actualOutput: responseText,
+        rating: parseInt(rating),
+        tags: rating >= 4 ? ["positive"] : ["negative"]
+      })
+    });
+    addActivity(`Learning: Feedback recorded (${rating}/5)`);
+  } catch (e) {
+    console.error("Feedback error:", e);
+  }
+}
+
+function getLastUserInput() {
+  for (let i = state.history.length - 1; i >= 0; i--) {
+    if (state.history[i].role === "user") {
+      return state.history[i].content;
+    }
+  }
+  return "";
 }
 
 function setOrbState(mode, label) {
@@ -2841,7 +2907,7 @@ async function localResponse(input) {
     }
   }
 
-  const openMatch = input.match(/^(?:open|go to|launch)\s+(.+)$/i);
+const openMatch = input.match(/^(?:open|go to|launch)\s+(.+)$/i);
   if (openMatch) {
     const target = openMatch[1].trim();
     const knownSites = {
@@ -2850,6 +2916,8 @@ async function localResponse(input) {
       gmail: "https://mail.google.com",
       calendar: "https://calendar.google.com",
       maps: "https://maps.google.com",
+      forge: "http://localhost:4000",
+      sentinel: "http://localhost:8000",
     };
     const url = knownSites[target.toLowerCase()] || (/^https?:\/\//i.test(target) ? target : `https://${target}`);
 
@@ -2862,9 +2930,27 @@ async function localResponse(input) {
     }
   }
 
-  if (/\b(hello|hi|hey|good morning|good afternoon|good evening)\b/.test(normalized)) {
-    return "Hello. I’m online and ready. What would you like to work on?";
+  if (/\b(forge|open forge|launch forge)\b/.test(normalized)) {
+    window.open("http://localhost:4000", "_blank", "noopener,noreferrer");
+    addActivity("FORGE dashboard opened");
+    return "Opening FORGE AI Engineering Team dashboard at http://localhost:4000";
   }
+
+  if (/\b(sentinel|open sentinel|launch sentinel)\b/.test(normalized)) {
+    window.open("http://localhost:8000", "_blank", "noopener,noreferrer");
+    addActivity("SENTINEL dashboard opened");
+    return "Opening SENTINEL Digital Security AI dashboard at http://localhost:8000";
+  }
+
+  if (/\b(services|check services|service status)\b/.test(normalized)) {
+    await checkExternalServices();
+    return "Service status check initiated. Check the right panel for results.";
+  }
+
+  if (/\b(hello|hi|hey|good morning|good afternoon|good evening)\b/.test(normalized)) {
+    return "Hello. I'm online and ready. What would you like to work on?";
+  }
+
 
   if (/\b(thank you|thanks)\b/.test(normalized)) {
     return "You’re welcome.";
@@ -3482,6 +3568,90 @@ async function checkServerStatus() {
     elements.modeLabel.textContent = "OFFLINE CORE";
     addActivity("Server link unavailable", true);
   }
+  
+  // Check sub-assistant status
+  await checkSubAssistantStatus();
+}
+
+async function checkSubAssistantStatus() {
+  const services = [
+    { id: 'forge', name: 'FORGE', url: 'http://localhost:4000/health', endpoint: '/api/proxy/forge' },
+    { id: 'sentinel', name: 'SENTINEL', url: 'http://localhost:8000/health', endpoint: '/api/proxy/sentinel' }
+  ];
+  
+  for (const service of services) {
+    const statusEl = document.getElementById(`${service.id}-panel-status`);
+    if (!statusEl) continue;
+    
+    statusEl.textContent = 'CHECKING...';
+    statusEl.previousElementSibling.className = 'status-dot checking';
+    
+    try {
+      const response = await fetch(service.endpoint, { method: 'GET' });
+      if (response.ok) {
+        statusEl.textContent = 'Online - Connected';
+        statusEl.previousElementSibling.className = 'status-dot online';
+      } else {
+        statusEl.textContent = 'Offline';
+        statusEl.previousElementSibling.className = 'status-dot offline';
+      }
+    } catch {
+      statusEl.textContent = 'Offline';
+      statusEl.previousElementSibling.className = 'status-dot offline';
+    }
+  }
+}
+
+function setupSubAssistantTabs() {
+  // Tab switching
+  document.querySelectorAll('.subassistant-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.subassistant;
+      
+      // Update tabs
+      document.querySelectorAll('.subassistant-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+      
+      // Update panels
+      document.querySelectorAll('.subassistant-panel').forEach(p => p.classList.remove('active'));
+      const panel = document.getElementById(`panel-${target}`);
+      if (panel) panel.classList.add('active');
+    });
+  });
+  
+  // Panel action buttons
+  const panelActions = {
+    'panel-aura-new-chat': () => {
+      state.history = [];
+      saveState();
+      document.querySelector('#conversation').innerHTML = '';
+      addActivity('New chat started');
+    },
+    'panel-aura-model': () => {
+      const modelSelect = document.getElementById('model-select');
+      if (modelSelect) modelSelect.focus();
+    },
+    'panel-forge-dashboard': () => window.open('http://localhost:4000', '_blank', 'noopener,noreferrer'),
+    'panel-forge-new-run': () => window.open('http://localhost:4000/runs/new', '_blank', 'noopener,noreferrer'),
+    'panel-forge-projects': () => window.open('http://localhost:4000/projects', '_blank', 'noopener,noreferrer'),
+    'panel-sentinel-dashboard': () => window.open('http://localhost:8000', '_blank', 'noopener,noreferrer'),
+    'panel-sentinel-scan': () => window.open('http://localhost:8000/scan', '_blank', 'noopener,noreferrer'),
+    'panel-sentinel-findings': () => window.open('http://localhost:8000/findings', '_blank', 'noopener,noreferrer'),
+  };
+  
+  Object.entries(panelActions).forEach(([id, action]) => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        action();
+        addActivity(`${id.replace('panel-', '').replace(/-/g, ' ')} triggered`);
+      });
+    }
+  });
 }
 
 async function loadModels(availableModels) {
@@ -4236,6 +4406,121 @@ document.addEventListener("visibilitychange", () => {
   scheduleWakeRestart();
 });
 
+async function initLearningUI() {
+  const learningList = document.getElementById("learning-list");
+  const learningCount = document.getElementById("learning-count");
+  const learningPositive = document.getElementById("learning-positive");
+  const learningNegative = document.getElementById("learning-negative");
+  const learningCorrections = document.getElementById("learning-corrections");
+  const learningClear = document.getElementById("learning-clear");
+  const learningExport = document.getElementById("learning-export");
+  
+  if (!learningList) return;
+  
+  async function refreshLearning() {
+    try {
+      const response = await fetch("/api/learning/entries");
+      const entries = await response.json();
+      
+      const positive = entries.filter(e => e.rating >= 4 && !e.tags.includes("correction")).length;
+      const negative = entries.filter(e => e.rating < 4 && !e.tags.includes("correction")).length;
+      const corrections = entries.filter(e => e.tags.includes("correction")).length;
+      
+      if (learningCount) learningCount.textContent = entries.length;
+      if (learningPositive) learningPositive.textContent = positive;
+      if (learningNegative) learningNegative.textContent = negative;
+      if (learningCorrections) learningCorrections.textContent = corrections;
+      
+      learningList.innerHTML = "";
+      if (!entries.length) {
+        learningList.innerHTML = '<div class="learning-empty">No learning data yet. Rate responses to teach AURA.</div>';
+        return;
+      }
+      
+      entries.slice(-20).reverse().forEach(entry => {
+        const item = document.createElement("div");
+        item.className = "learning-item";
+        
+        let tagClass = "";
+        let tagText = "";
+        if (entry.tags.includes("correction")) {
+          tagClass = "correction";
+          tagText = "CORRECTION";
+        } else if (entry.rating >= 4) {
+          tagClass = "";
+          tagText = "POSITIVE";
+        } else {
+          tagClass = "negative";
+          tagText = "NEGATIVE";
+        }
+        
+        item.innerHTML = `
+          <span class="learning-tag ${tagClass}">${tagText}</span>
+          <span class="learning-preview">${entry.input.slice(0, 50)}${entry.input.length > 50 ? "..." : ""}</span>
+          <button class="feedback-btn feedback-negative" data-id="${entry.id}" title="Delete">✗</button>
+        `;
+        
+        item.querySelector(".feedback-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteLearningEntry(entry.id);
+        });
+        
+        learningList.appendChild(item);
+      });
+    } catch (e) {
+      console.error("Failed to load learning data:", e);
+    }
+  }
+  
+  async function deleteLearningEntry(id) {
+    try {
+      await fetch(`/api/learning/entries/${id}`, { method: "DELETE" });
+      await refreshLearning();
+      addActivity("Learning entry deleted");
+    } catch (e) {
+      console.error("Delete failed:", e);
+    }
+  }
+  
+  if (learningClear) {
+    learningClear.addEventListener("click", async () => {
+      if (!confirm("Clear all learning data?")) return;
+      try {
+        const response = await fetch("/api/learning/entries");
+        const entries = await response.json();
+        for (const entry of entries) {
+          await fetch(`/api/learning/entries/${entry.id}`, { method: "DELETE" });
+        }
+        await refreshLearning();
+        addActivity("All learning data cleared");
+      } catch (e) {
+        console.error("Clear failed:", e);
+      }
+    });
+  }
+  
+  if (learningExport) {
+    learningExport.addEventListener("click", async () => {
+      try {
+        const response = await fetch("/api/learning/entries");
+        const entries = await response.json();
+        const blob = new Blob([JSON.stringify(entries, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `aura-learning-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        addActivity("Learning data exported");
+      } catch (e) {
+        console.error("Export failed:", e);
+      }
+    });
+  }
+  
+  await refreshLearning();
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   updateClock();
   setInterval(updateClock, 1000);
@@ -4253,6 +4538,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupLanguageSelector();
   setupVoiceRecognition();
   setupCanvas();
+  initLearningUI();
+  setupSubAssistantTabs();
 
   // SFX and Fullscreen Topbar utilities
   const sfxBtn = document.querySelector("#sfx-toggle");
@@ -4279,6 +4566,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+
+  // Dock service buttons
+  document.querySelectorAll(".dock-service-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const url = btn.dataset.url;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        addActivity(`${btn.id.replace("dock-", "").toUpperCase()} opened from dock`);
+      }
+    });
+  });
 
   // Add click sound effects to all interactive buttons
   document.querySelectorAll("button, .suggestion-chip, .quick-command, .mode-toggle").forEach((btn) => {
@@ -4314,6 +4612,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   updateSecurityCardStatus();
   await initEnhancedAuth();
+  initSkillsPanel();
   // Don't setup face auth on initial load - wait for lock
   // setupFaceAuth();
 
@@ -4345,4 +4644,346 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   addPinEntryHandlers();
+  initSkillsPanel();
 });
+
+async function initSkillsPanel() {
+  const skillsList = document.getElementById("skills-list");
+  const skillsCount = document.getElementById("skills-count");
+  const categoryFilter = document.getElementById("skill-category-filter");
+  const refreshBtn = document.getElementById("skills-refresh");
+  const installBtn = document.getElementById("skills-install");
+  const modalOverlay = document.getElementById("skill-modal-overlay");
+  const modalClose = document.getElementById("skill-modal-close");
+  const modalCancel = document.getElementById("skill-modal-cancel");
+  const modalForm = document.getElementById("skill-modal-form");
+  const installMethod = document.getElementById("skill-install-method");
+  const templateSection = document.getElementById("skill-template-section");
+  const urlSection = document.getElementById("skill-url-section");
+  const localSection = document.getElementById("skill-local-section");
+  const customSection = document.getElementById("skill-custom-section");
+  const templatesGrid = document.getElementById("skill-templates-grid");
+
+  let allSkills = [];
+  let selectedTemplate = null;
+
+  async function loadSkills() {
+    if (!skillsList) return;
+    skillsList.innerHTML = '<div class="skills-loading">Loading skills...</div>';
+    
+    try {
+      const response = await fetch("/api/skills");
+      if (!response.ok) throw new Error('Failed to load skills');
+      const data = await response.json();
+      allSkills = data.skills || [];
+      renderSkills(allSkills);
+      if (skillsCount) skillsCount.textContent = allSkills.length;
+    } catch (error) {
+      console.error('Failed to load skills:', error);
+      skillsList.innerHTML = '<div class="skills-loading">Failed to load skills. Is the server running?</div>';
+    }
+  }
+
+  function renderSkills(skills) {
+    if (!skillsList) return;
+    
+    const filter = categoryFilter?.value || 'all';
+    const filtered = filter === 'all' ? skills : skills.filter(s => s.category === filter);
+    
+    if (filtered.length === 0) {
+      skillsList.innerHTML = '<div class="skills-loading">No skills found</div>';
+      return;
+    }
+
+    skillsList.innerHTML = filtered.map(skill => `
+      <div class="skill-item ${!skill.enabled ? 'disabled' : ''}" data-skill-id="${skill.id}">
+        <div class="skill-header">
+          <div class="skill-info">
+            <div class="skill-icon">
+              ${getSkillIcon(skill.category)}
+            </div>
+            <div class="skill-details">
+              <span class="skill-name">${skill.name}</span>
+              <div class="skill-meta">
+                <span class="skill-version">v${skill.version}</span>
+                <span class="skill-category">${skill.category}</span>
+              </div>
+            </div>
+          </div>
+          <button class="skill-toggle ${skill.enabled ? 'enabled' : ''}" 
+                  data-skill-id="${skill.id}" 
+                  aria-label="${skill.enabled ? 'Disable' : 'Enable'} ${skill.name}"
+                  aria-pressed="${skill.enabled}"></button>
+        </div>
+        <div class="skill-description">${skill.description}</div>
+        <div class="skill-tags">
+          ${skill.tags.map(tag => `<span class="skill-tag">${tag}</span>`).join('')}
+        </div>
+        <div class="skill-actions">
+          <button class="skill-action-btn primary" data-action="configure" data-skill-id="${skill.id}">Configure</button>
+          <button class="skill-action-btn" data-action="details" data-skill-id="${skill.id}">Details</button>
+          <button class="skill-action-btn" data-action="remove" data-skill-id="${skill.id}">Remove</button>
+        </div>
+      </div>
+    `).join('');
+
+    // Add event listeners
+    skillsList.querySelectorAll('.skill-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSkill(btn.dataset.skillId, !btn.classList.contains('enabled'));
+      });
+    });
+
+    skillsList.querySelectorAll('.skill-action-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleSkillAction(btn.dataset.action, btn.dataset.skillId);
+      });
+    });
+  }
+
+  function getSkillIcon(category) {
+    const icons = {
+      development: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+      productivity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+      security: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+      analysis: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+      utility: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+      ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+      custom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>'
+    };
+    return icons[category] || icons.custom;
+  }
+
+  async function toggleSkill(skillId, enable) {
+    try {
+      const response = await fetch(`/api/skills/${skillId}/${enable ? 'enable' : 'disable'}`, { method: 'POST' });
+      if (response.ok) {
+        await loadSkills();
+        addActivity(`Skill ${enable ? 'enabled' : 'disabled'}: ${skillId}`);
+      } else {
+        throw new Error('Failed to toggle skill');
+      }
+    } catch (error) {
+      console.error('Toggle skill failed:', error);
+      addActivity(`Failed to toggle skill: ${error.message}`, true);
+    }
+  }
+
+  function handleSkillAction(action, skillId) {
+    const skill = allSkills.find(s => s.id === skillId);
+    if (!skill) return;
+
+    switch (action) {
+      case 'configure':
+        openSkillConfig(skill);
+        break;
+      case 'details':
+        showSkillDetails(skill);
+        break;
+      case 'remove':
+        if (confirm(`Remove skill "${skill.name}"?`)) {
+          removeSkill(skillId);
+        }
+        break;
+    }
+  }
+
+  async function removeSkill(skillId) {
+    try {
+      const response = await fetch(`/api/skills/${skillId}`, { method: 'DELETE' });
+      if (response.ok) {
+        await loadSkills();
+        addActivity(`Skill removed: ${skillId}`);
+      }
+    } catch (error) {
+      console.error('Remove skill failed:', error);
+      addActivity(`Failed to remove skill: ${error.message}`, true);
+    }
+  }
+
+  function openSkillConfig(skill) {
+    const config = skill.config || {};
+    const newConfig = {};
+    
+    for (const [key, schema] of Object.entries(skill.configSchema?.properties || {})) {
+      const currentValue = config[key] ?? schema.default;
+      let input;
+      
+      if (schema.type === 'boolean') {
+        input = prompt(`${schema.description}\nCurrent: ${currentValue}\nNew value (true/false):`, String(currentValue));
+        newConfig[key] = input === 'true';
+      } else if (schema.type === 'number') {
+        input = prompt(`${schema.description}\nCurrent: ${currentValue}\nNew value:`, String(currentValue));
+        newConfig[key] = parseFloat(input || String(currentValue));
+      } else if (schema.enum) {
+        input = prompt(`${schema.description}\nOptions: ${schema.enum.join(', ')}\nCurrent: ${currentValue}\nNew value:`, currentValue);
+        newConfig[key] = input;
+      } else {
+        input = prompt(`${schema.description}\nCurrent: ${currentValue}\nNew value:`, currentValue);
+        newConfig[key] = input;
+      }
+    }
+    
+    if (Object.keys(newConfig).length > 0) {
+      updateSkillConfig(skill.id, newConfig);
+    }
+  }
+
+  async function updateSkillConfig(skillId, config) {
+    try {
+      const response = await fetch(`/api/skills/${skillId}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      if (response.ok) {
+        await loadSkills();
+        addActivity(`Skill config updated: ${skillId}`);
+      }
+    } catch (error) {
+      console.error('Update skill config failed:', error);
+      addActivity(`Failed to update config: ${error.message}`, true);
+    }
+  }
+
+  function showSkillDetails(skill) {
+    alert(`${skill.name} v${skill.version}\n\n${skill.description}\n\nAuthor: ${skill.author}\nCategory: ${skill.category}\nTags: ${skill.tags.join(', ')}\nPermissions: ${skill.permissions.map(p => `${p.type}:${p.scope.join(',')}`).join('; ')}`);
+  }
+
+  // Modal handling
+  function openInstallModal() {
+    if (modalOverlay) modalOverlay.classList.add('active');
+    renderTemplates();
+  }
+
+  function closeInstallModal() {
+    if (modalOverlay) modalOverlay.classList.remove('active');
+    if (modalForm) modalForm.reset();
+    selectedTemplate = null;
+    document.querySelectorAll('.skill-template-card').forEach(c => c.classList.remove('selected'));
+  }
+
+  function renderTemplates() {
+    if (!templatesGrid) return;
+    
+    const templates = [
+      { id: 'code-analysis', name: 'Code Analysis', category: 'development', desc: 'Analyze code for bugs, security issues, and best practices', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>' },
+      { id: 'task-automation', name: 'Task Automation', category: 'productivity', desc: 'Create and manage automated workflows', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>' },
+      { id: 'security-audit', name: 'Security Audit', category: 'security', desc: 'Scan for vulnerabilities and compliance issues', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>' },
+      { id: 'data-analysis', name: 'Data Analysis', category: 'analysis', desc: 'Analyze data, generate visualizations and insights', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' },
+      { id: 'documentation', name: 'Documentation', category: 'development', desc: 'Generate docs from code (README, API docs, comments)', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' }
+    ];
+
+    templatesGrid.innerHTML = templates.map(t => `
+      <div class="skill-template-card" data-template-id="${t.id}">
+        <div class="skill-template-icon">${t.icon}</div>
+        <div class="skill-template-name">${t.name}</div>
+        <div class="skill-template-desc">${t.desc}</div>
+      </div>
+    `).join('');
+
+    templatesGrid.querySelectorAll('.skill-template-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.skill-template-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedTemplate = card.dataset.templateId;
+      });
+    });
+  }
+
+  // Event listeners
+  if (categoryFilter) {
+    categoryFilter.addEventListener('change', () => renderSkills(allSkills));
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', loadSkills);
+  }
+
+  if (installBtn) {
+    installBtn.addEventListener('click', openInstallModal);
+  }
+
+  if (modalClose) modalClose.addEventListener('click', closeInstallModal);
+  if (modalCancel) modalCancel.addEventListener('click', closeInstallModal);
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeInstallModal();
+    });
+  }
+
+  if (installMethod) {
+    installMethod.addEventListener('change', (e) => {
+      const method = e.target.value;
+      if (templateSection) templateSection.style.display = method === 'template' ? 'block' : 'none';
+      if (urlSection) urlSection.style.display = method === 'url' ? 'block' : 'none';
+      if (localSection) localSection.style.display = method === 'local' ? 'block' : 'none';
+      if (customSection) customSection.style.display = method === 'custom' ? 'block' : 'none';
+    });
+  }
+
+  if (modalForm) {
+    modalForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const method = installMethod?.value;
+      
+      try {
+        let result;
+        if (method === 'template' && selectedTemplate) {
+          result = await fetch('/api/skills/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ template: selectedTemplate })
+          });
+        } else if (method === 'url') {
+          const url = document.getElementById('skill-url')?.value;
+          result = await fetch('/api/skills/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
+        } else if (method === 'local') {
+          const file = document.getElementById('skill-local-file')?.files?.[0];
+          if (file) {
+            const text = await file.text();
+            const manifest = JSON.parse(text);
+            result = await fetch('/api/skills/install', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ manifest })
+            });
+          }
+        } else if (method === 'custom') {
+          const id = document.getElementById('skill-custom-id')?.value;
+          const name = document.getElementById('skill-custom-name')?.value;
+          const category = document.getElementById('skill-custom-category')?.value;
+          const description = document.getElementById('skill-custom-description')?.value;
+          const code = document.getElementById('skill-custom-code')?.value;
+          
+          result = await fetch('/api/skills/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ custom: { id, name, category, description, code } })
+          });
+        }
+
+        if (result?.ok) {
+          closeInstallModal();
+          await loadSkills();
+          addActivity('Skill installed successfully');
+        } else {
+          const error = await result?.json();
+          throw new Error(error?.error || 'Install failed');
+        }
+      } catch (error) {
+        console.error('Skill install failed:', error);
+        addActivity(`Skill install failed: ${error.message}`, true);
+      }
+    });
+  }
+
+  // Initial load
+  await loadSkills();
+}

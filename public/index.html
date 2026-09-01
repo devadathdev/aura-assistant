@@ -764,6 +764,7 @@
                 <select id="model-select" aria-label="Select AI model">
                   <optgroup label="Free Models">
                     <option value="nemotron-3-ultra">Nemotron 3 Ultra (NVIDIA)</option>
+                    <option value="nemotron-3.5-lightning">Nemotron 3.5 Lightning (NVIDIA)</option>
                     <option value="nemotron-3-super">Nemotron 3 Super (NVIDIA)</option>
                     <option value="nemotron-3-nano">Nemotron 3 Nano (NVIDIA)</option>
                     <option value="gemma-4-31b">Gemma 4 31B (Google)</option>
@@ -789,6 +790,35 @@
                 <span id="model-type" class="free-badge">LOCAL CORE</span>
                 <span class="model-quant">QUANT: Q4_K_M</span>
               </div>
+            </div>
+          </section>
+
+          <!-- Self-Learning Panel -->
+          <section class="hud-card learning-card">
+            <div class="section-heading hud-section-header">
+              <span class="heading-text"><i class="heading-icon">◈</i> SELF-LEARNING</span>
+              <span id="learning-count" class="hud-badge">0</span>
+            </div>
+            <div class="learning-stats">
+              <div class="stat-item">
+                <span class="stat-value" id="learning-positive">0</span>
+                <span class="stat-label">POSITIVE</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="learning-negative">0</span>
+                <span class="stat-label">NEGATIVE</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="learning-corrections">0</span>
+                <span class="stat-label">CORRECTIONS</span>
+              </div>
+            </div>
+            <div class="learning-list" id="learning-list">
+              <div class="learning-empty">No learning data yet. Rate responses to teach AURA.</div>
+            </div>
+            <div class="learning-actions">
+              <button id="learning-clear" class="hud-btn secondary">CLEAR LEARNING</button>
+              <button id="learning-export" class="hud-btn secondary">EXPORT</button>
             </div>
           </section>
 
@@ -819,6 +849,106 @@
                 <span class="activity-node hud-node-active"></span>
                 <div><strong>Terminal synchronized</strong><small>Just now</small></div>
               </div>
+            </div>
+          </section>
+
+          <!-- Sub-Assistants Quick Access -->
+          <section class="hud-card subassistants-card">
+            <div class="section-heading hud-section-header">
+              <span class="heading-text"><i class="heading-icon">⬢</i> SUB-ASSISTANTS</span>
+              <span id="subassistants-count" class="hud-badge">2</span>
+            </div>
+            <div class="subassistants-tabs">
+              <button class="subassistant-tab active" data-subassistant="aura" aria-selected="true">
+                <span class="tab-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                  </svg>
+                </span>
+                <span class="tab-label">AURA</span>
+                <span class="tab-indicator"></span>
+              </button>
+              <button class="subassistant-tab" data-subassistant="forge" aria-selected="false">
+                <span class="tab-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                  </svg>
+                </span>
+                <span class="tab-label">FORGE</span>
+                <span class="tab-indicator"></span>
+              </button>
+              <button class="subassistant-tab" data-subassistant="sentinel" aria-selected="false">
+                <span class="tab-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M9 12l2 2 4-4"/>
+                  </svg>
+                </span>
+                <span class="tab-label">SENTINEL</span>
+                <span class="tab-indicator"></span>
+              </button>
+            </div>
+            <div class="subassistant-panels">
+              <div class="subassistant-panel active" id="panel-aura">
+                <div class="panel-status">
+                  <span class="status-dot online"></span>
+                  <span>Primary Assistant Active</span>
+                </div>
+                <div class="panel-actions">
+                  <button class="panel-btn" id="panel-aura-new-chat">New Chat</button>
+                  <button class="panel-btn" id="panel-aura-model">Switch Model</button>
+                </div>
+              </div>
+              <div class="subassistant-panel" id="panel-forge">
+                <div class="panel-status">
+                  <span class="status-dot checking"></span>
+                  <span id="forge-panel-status">Checking...</span>
+                </div>
+                <div class="panel-actions">
+                  <button class="panel-btn" id="panel-forge-dashboard">Open Dashboard</button>
+                  <button class="panel-btn" id="panel-forge-new-run">New Run</button>
+                  <button class="panel-btn" id="panel-forge-projects">Projects</button>
+                </div>
+              </div>
+              <div class="subassistant-panel" id="panel-sentinel">
+                <div class="panel-status">
+                  <span class="status-dot checking"></span>
+                  <span id="sentinel-panel-status">Checking...</span>
+                </div>
+                <div class="panel-actions">
+                  <button class="panel-btn" id="panel-sentinel-dashboard">Open Dashboard</button>
+                  <button class="panel-btn" id="panel-sentinel-scan">New Scan</button>
+                  <button class="panel-btn" id="panel-sentinel-findings">Findings</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Skills Panel -->
+          <section class="hud-card skills-card">
+            <div class="section-heading hud-section-header">
+              <span class="heading-text"><i class="heading-icon">◎</i> SKILLS</span>
+              <span id="skills-count" class="hud-badge">0</span>
+            </div>
+            <div class="skills-filter">
+              <select id="skill-category-filter" aria-label="Filter skills by category">
+                <option value="all">All Categories</option>
+                <option value="development">Development</option>
+                <option value="productivity">Productivity</option>
+                <option value="security">Security</option>
+                <option value="analysis">Analysis</option>
+                <option value="utility">Utility</option>
+                <option value="ai">AI/ML</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="skills-list" id="skills-list">
+              <div class="skills-loading">Loading skills...</div>
+            </div>
+            <div class="skills-actions">
+              <button id="skills-refresh" class="hud-btn secondary">REFRESH</button>
+              <button id="skills-install" class="hud-btn secondary">INSTALL SKILL</button>
             </div>
           </section>
 
@@ -867,6 +997,20 @@
       <footer class="command-dock hud-dock">
         <div class="dock-corner left"></div>
         <form id="command-form" class="cyber-dock-form">
+          <div class="dock-services" id="dock-services">
+            <button type="button" class="dock-service-btn" id="dock-forge" data-url="http://localhost:4000" title="FORGE AI Engineering Team" aria-label="Open FORGE">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </button>
+            <button type="button" class="dock-service-btn" id="dock-sentinel" data-url="http://localhost:8000" title="SENTINEL Digital Security AI" aria-label="Open SENTINEL">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M9 12l2 2 4-4"/>
+              </svg>
+            </button>
+          </div>
+          
           <button type="button" class="dock-button voice-dock-button" id="voice-button" aria-label="Toggle voice input">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
@@ -919,6 +1063,11 @@
         <div class="message-body">
           <p></p>
         </div>
+        <div class="message-actions" style="display:none;">
+          <button class="feedback-btn feedback-positive" title="Good response" data-rating="5">✓</button>
+          <button class="feedback-btn feedback-negative" title="Needs improvement" data-rating="2">✗</button>
+          <button class="feedback-btn feedback-correct" title="Provide better answer">✎</button>
+        </div>
       </article>
     </template>
 
@@ -943,6 +1092,78 @@
         <span class="queue-action-icon">✕</span>
       </button>
     </template>
+
+    <!-- Skill Install Modal -->
+    <div class="skill-modal-overlay" id="skill-modal-overlay">
+      <div class="skill-modal">
+        <div class="skill-modal-header">
+          <span class="skill-modal-title">Install New Skill</span>
+          <button type="button" class="skill-modal-close" id="skill-modal-close" aria-label="Close">✕</button>
+        </div>
+        <form class="skill-modal-form" id="skill-modal-form">
+          <div class="skill-modal-field">
+            <label for="skill-install-method">Installation Method</label>
+            <select id="skill-install-method">
+              <option value="template">From Template</option>
+              <option value="url">From URL (GitHub/Gist)</option>
+              <option value="local">From Local File</option>
+              <option value="custom">Create Custom</option>
+            </select>
+          </div>
+          
+          <div id="skill-template-section" class="skill-template-section">
+            <label>Available Templates</label>
+            <div class="skills-grid" id="skill-templates-grid"></div>
+          </div>
+          
+          <div id="skill-url-section" class="skill-modal-field" style="display:none;">
+            <label for="skill-url">Repository URL</label>
+            <input type="url" id="skill-url" placeholder="https://github.com/user/skill-repo" required>
+          </div>
+          
+          <div id="skill-local-section" class="skill-modal-field" style="display:none;">
+            <label for="skill-local-file">Skill Manifest File</label>
+            <input type="file" id="skill-local-file" accept=".json,.ts,.js" required>
+          </div>
+          
+          <div id="skill-custom-section" style="display:none;">
+            <div class="skill-modal-field">
+              <label for="skill-custom-id">Skill ID</label>
+              <input type="text" id="skill-custom-id" placeholder="my-custom-skill" pattern="[a-z0-9-]+" required>
+            </div>
+            <div class="skill-modal-field">
+              <label for="skill-custom-name">Display Name</label>
+              <input type="text" id="skill-custom-name" placeholder="My Custom Skill" required>
+            </div>
+            <div class="skill-modal-field">
+              <label for="skill-custom-category">Category</label>
+              <select id="skill-custom-category">
+                <option value="development">Development</option>
+                <option value="productivity">Productivity</option>
+                <option value="security">Security</option>
+                <option value="analysis">Analysis</option>
+                <option value="utility">Utility</option>
+                <option value="ai">AI/ML</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="skill-modal-field">
+              <label for="skill-custom-description">Description</label>
+              <textarea id="skill-custom-description" placeholder="What does this skill do?"></textarea>
+            </div>
+            <div class="skill-modal-field">
+              <label for="skill-custom-code">Skill Code (TypeScript/JavaScript)</label>
+              <textarea id="skill-custom-code" placeholder="// Export hooks object with onUserMessage, onCommand, etc."></textarea>
+            </div>
+          </div>
+          
+          <div class="skill-modal-actions">
+            <button type="button" class="hud-btn secondary" id="skill-modal-cancel">CANCEL</button>
+            <button type="submit" class="hud-btn primary">INSTALL</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <script src="/app.js"></script>
   </body>

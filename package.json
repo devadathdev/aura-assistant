@@ -7,7 +7,17 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check public/app.js"
+    "check": "node --check server.js && node --check public/app.js",
+    "start:all": "node start-all.js",
+    "start:all:sh": "./start-all.sh",
+    "start:forge": "cd FORGE && pnpm dev",
+    "start:sentinel:api": "cd SENTINEL/sentinel/apps/api && uv run uvicorn sentinel_api.main:app --host 0.0.0.0 --port 8000 --reload",
+    "start:sentinel:web": "cd SENTINEL/sentinel/apps/web && pnpm dev",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose build",
+    "docker:restart": "docker-compose restart"
   },
   "engines": {
     "node": ">=18"

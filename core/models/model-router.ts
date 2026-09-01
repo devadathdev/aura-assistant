@@ -86,12 +86,15 @@ export class OpenRouterProvider implements ModelProvider {
   name = 'openrouter';
   private apiKey: string;
   private baseUrl = 'https://openrouter.ai/api/v1';
+  private defaultModel: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, defaultModel: string = 'nvidia/nemotron-3-ultra-550b-a55b:free') {
     this.apiKey = apiKey;
+    this.defaultModel = defaultModel;
   }
 
   async generate(prompt: string, options: GenerationOptions = {}): Promise<string> {
+    const model = options.tools?.length ? 'nvidia/nemotron-3.5-lightning:free' : this.defaultModel;
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -101,7 +104,7 @@ export class OpenRouterProvider implements ModelProvider {
         'X-Title': 'AURA Unified Intelligence Platform'
       },
       body: JSON.stringify({
-        model: options.systemPrompt ? 'nvidia/nemotron-3-ultra-550b-a55b:free' : 'nvidia/nemotron-3-ultra-550b-a55b:free',
+        model,
         messages: [
           ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
           { role: 'user', content: prompt }
@@ -120,14 +123,24 @@ export class OpenRouterProvider implements ModelProvider {
   }
 
   getCapabilities(): ModelCapability[] {
-    return [{
-      name: 'nemotron-3-ultra',
-      maxContextTokens: 128000,
-      supportsTools: true,
-      supportsStreaming: true,
-      costPer1kTokens: 0,
-      latencyMs: 2000
-    }];
+    return [
+      {
+        name: 'nemotron-3-ultra',
+        maxContextTokens: 128000,
+        supportsTools: true,
+        supportsStreaming: true,
+        costPer1kTokens: 0,
+        latencyMs: 2000
+      },
+      {
+        name: 'nemotron-3.5-lightning',
+        maxContextTokens: 128000,
+        supportsTools: true,
+        supportsStreaming: true,
+        costPer1kTokens: 0,
+        latencyMs: 1500
+      }
+    ];
   }
 }
 

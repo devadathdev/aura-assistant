@@ -175,6 +175,7 @@ AURA supports 30+ models across three tiers via OpenRouter:
 | Key | Model | Provider |
 | --- | --- | --- |
 | `nemotron-3-ultra` | Nemotron 3 Ultra 550B | NVIDIA |
+| `nemotron-3.5-lightning` | Nemotron 3.5 Lightning | NVIDIA |
 | `nemotron-3-super` | Nemotron 3 Super 120B | NVIDIA |
 | `nemotron-3-nano` | Nemotron 3 Nano 30B | NVIDIA |
 | `nemotron-nano-omni` | Nemotron 3 Nano Omni 30B | NVIDIA |

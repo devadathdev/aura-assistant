@@ -1,0 +1,359 @@
+[
+  {
+    "id": "code-analysis",
+    "name": "Code Analysis",
+    "version": "1.0.0",
+    "description": "Analyzes code snippets for issues, best practices, and improvements",
+    "author": "AURA Team",
+    "category": "development",
+    "tags": [
+      "code",
+      "analysis",
+      "lint",
+      "review"
+    ],
+    "permissions": [
+      {
+        "type": "model",
+        "scope": [
+          "analysis"
+        ],
+        "description": "Uses AI model for code analysis"
+      },
+      {
+        "type": "filesystem",
+        "scope": [
+          "read"
+        ],
+        "description": "Reads code files for analysis"
+      }
+    ],
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "autoAnalyze": {
+          "type": "boolean",
+          "description": "Automatically analyze code blocks",
+          "default": true
+        },
+        "severityThreshold": {
+          "type": "string",
+          "description": "Minimum severity to report",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "default": "warning"
+        },
+        "languages": {
+          "type": "array",
+          "description": "Supported languages",
+          "default": [
+            "typescript",
+            "javascript",
+            "python",
+            "go",
+            "rust"
+          ]
+        }
+      }
+    },
+    "defaultConfig": {
+      "autoAnalyze": true,
+      "severityThreshold": "warning",
+      "languages": [
+        "typescript",
+        "javascript",
+        "python",
+        "go",
+        "rust"
+      ]
+    },
+    "enabled": true
+  },
+  {
+    "id": "task-automation",
+    "name": "Task Automation",
+    "version": "1.0.0",
+    "description": "Automates repetitive tasks and workflows",
+    "author": "AURA Team",
+    "category": "productivity",
+    "tags": [
+      "automation",
+      "workflow",
+      "tasks",
+      "scheduler"
+    ],
+    "permissions": [
+      {
+        "type": "shell",
+        "scope": [
+          "execute"
+        ],
+        "description": "Runs automation scripts"
+      },
+      {
+        "type": "filesystem",
+        "scope": [
+          "read",
+          "write"
+        ],
+        "description": "Manages task files and scripts"
+      },
+      {
+        "type": "api",
+        "scope": [
+          "forge"
+        ],
+        "description": "Triggers FORGE runs"
+      }
+    ],
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "maxConcurrentTasks": {
+          "type": "number",
+          "description": "Max concurrent tasks",
+          "default": 3
+        },
+        "defaultTimeout": {
+          "type": "number",
+          "description": "Default timeout (ms)",
+          "default": 300000
+        },
+        "retryAttempts": {
+          "type": "number",
+          "description": "Retry attempts",
+          "default": 2
+        }
+      }
+    },
+    "defaultConfig": {
+      "maxConcurrentTasks": 3,
+      "defaultTimeout": 300000,
+      "retryAttempts": 2
+    },
+    "enabled": true
+  },
+  {
+    "id": "security-audit",
+    "name": "Security Audit",
+    "version": "1.0.0",
+    "description": "Scans for security vulnerabilities and compliance issues",
+    "author": "AURA Team",
+    "category": "security",
+    "tags": [
+      "security",
+      "audit",
+      "vulnerability",
+      "compliance",
+      "sentinel"
+    ],
+    "permissions": [
+      {
+        "type": "api",
+        "scope": [
+          "sentinel"
+        ],
+        "description": "Integrates with SENTINEL for security scanning"
+      },
+      {
+        "type": "shell",
+        "scope": [
+          "semgrep",
+          "gitleaks",
+          "trivy"
+        ],
+        "description": "Runs security scanners"
+      },
+      {
+        "type": "filesystem",
+        "scope": [
+          "read"
+        ],
+        "description": "Scans codebase for vulnerabilities"
+      }
+    ],
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "scanOnSave": {
+          "type": "boolean",
+          "description": "Scan on file save",
+          "default": false
+        },
+        "severityFilter": {
+          "type": "string",
+          "description": "Minimum severity",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "default": "medium"
+        },
+        "scanners": {
+          "type": "array",
+          "description": "Enabled scanners",
+          "default": [
+            "semgrep",
+            "gitleaks",
+            "trivy",
+            "npm-audit"
+          ]
+        },
+        "autoRemediate": {
+          "type": "boolean",
+          "description": "Auto-remediate issues",
+          "default": false
+        }
+      }
+    },
+    "defaultConfig": {
+      "scanOnSave": false,
+      "severityFilter": "medium",
+      "scanners": [
+        "semgrep",
+        "gitleaks",
+        "trivy",
+        "npm-audit"
+      ],
+      "autoRemediate": false
+    },
+    "enabled": true
+  },
+  {
+    "id": "data-analysis",
+    "name": "Data Analysis",
+    "version": "1.0.0",
+    "description": "Performs data analysis, visualization, and insights generation",
+    "author": "AURA Team",
+    "category": "analysis",
+    "tags": [
+      "data",
+      "analytics",
+      "visualization",
+      "statistics",
+      "ml"
+    ],
+    "permissions": [
+      {
+        "type": "model",
+        "scope": [
+          "analysis"
+        ],
+        "description": "Uses AI for data insights"
+      },
+      {
+        "type": "filesystem",
+        "scope": [
+          "read",
+          "write"
+        ],
+        "description": "Processes data files"
+      },
+      {
+        "type": "shell",
+        "scope": [
+          "python",
+          "jupyter"
+        ],
+        "description": "Runs data analysis scripts"
+      }
+    ],
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "defaultFormat": {
+          "type": "string",
+          "description": "Default data format",
+          "default": "csv"
+        },
+        "maxRows": {
+          "type": "number",
+          "description": "Max rows to process",
+          "default": 100000
+        },
+        "enableML": {
+          "type": "boolean",
+          "description": "Enable ML features",
+          "default": false
+        }
+      }
+    },
+    "defaultConfig": {
+      "defaultFormat": "csv",
+      "maxRows": 100000,
+      "enableML": false
+    },
+    "enabled": true
+  },
+  {
+    "id": "documentation",
+    "name": "Documentation Generator",
+    "version": "1.0.0",
+    "description": "Generates and maintains documentation from code",
+    "author": "AURA Team",
+    "category": "development",
+    "tags": [
+      "documentation",
+      "docs",
+      "readme",
+      "api-docs",
+      "comments"
+    ],
+    "permissions": [
+      {
+        "type": "model",
+        "scope": [
+          "generation"
+        ],
+        "description": "Generates documentation using AI"
+      },
+      {
+        "type": "filesystem",
+        "scope": [
+          "read",
+          "write"
+        ],
+        "description": "Reads code and writes docs"
+      }
+    ],
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "formats": {
+          "type": "array",
+          "description": "Output formats",
+          "default": [
+            "markdown",
+            "jsdoc",
+            "openapi"
+          ]
+        },
+        "includeExamples": {
+          "type": "boolean",
+          "description": "Include code examples",
+          "default": true
+        },
+        "updateOnChange": {
+          "type": "boolean",
+          "description": "Auto-update on code changes",
+          "default": false
+        }
+      }
+    },
+    "defaultConfig": {
+      "formats": [
+        "markdown",
+        "jsdoc",
+        "openapi"
+      ],
+      "includeExamples": true,
+      "updateOnChange": false
+    },
+    "enabled": true
+  }
+]

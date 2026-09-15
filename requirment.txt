@@ -1,0 +1,20 @@
+# AURA Assistant runtime requirements
+#
+# Node.js 18+ is required. Node 20 LTS is recommended for production.
+# JavaScript dependencies are declared in package.json.
+# Install with: npm install
+#
+# Browser voice requirements:
+# - Microphone permission
+# - SpeechRecognition / webkitSpeechRecognition
+# - SpeechSynthesis
+# - HTTPS or localhost for browser microphone APIs
+#
+# Optional device-control integration:
+# - Home Assistant-compatible HTTP API
+# - DEVICE_CONTROL_URL / HOME_ASSISTANT_URL
+# - DEVICE_CONTROL_TOKEN / HOME_ASSISTANT_TOKEN
+#
+# Optional AI configuration:
+# - OPENROUTER_API_KEY
+# - OPENROUTER_MODEL

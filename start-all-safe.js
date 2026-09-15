@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-'use strict';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 
-const { spawn } = require('node:child_process');
-const path = require('node:path');
-
-const ROOT = __dirname;
+const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const RESET = '\x1b[0m';
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
@@ -13,9 +12,32 @@ const CYAN = '\x1b[36m';
 const GRAY = '\x1b[90m';
 
 const services = [
-  { name: 'AURA Assistant', cwd: ROOT, command: process.execPath, args: ['server.js'], port: 3000, health: '/api/status' },
-  { name: 'FORGE API', cwd: process.env.FORGE_DIR || path.join(ROOT, '..', 'forge'), command: 'npm', args: ['run', 'start'], port: 4000 },
-  { name: 'SENTINEL API', cwd: process.env.SENTINEL_DIR || path.join(ROOT, '..', 'sentinel'), command: 'npm', args: ['run', 'start'], port: 8000 }
+  {
+    name: 'AURA Assistant',
+    cwd: ROOT,
+    command: process.execPath,
+    args: ['server.js'],
+    port: 3000,
+    health: '/api/status'
+  },
+  {
+    name: 'FORGE API',
+    cwd: process.env.FORGE_DIR || path.join(ROOT, '..', 'forge'),
+    command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    args: ['run', 'start'],
+    port: 4000,
+    health: '/health',
+    optional: true
+  },
+  {
+    name: 'SENTINEL API',
+    cwd: process.env.SENTINEL_DIR || path.join(ROOT, '..', 'sentinel'),
+    command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    args: ['run', 'start'],
+    port: 8000,
+    health: '/health',
+    optional: true
+  }
 ];
 
 const children = new Map();
@@ -61,21 +83,23 @@ async function main() {
   log(GRAY, `Root: ${ROOT}`);
 
   for (const service of services) {
-    if (service.name !== 'AURA Assistant' && service.cwd && !require('node:fs').existsSync(service.cwd)) {
-      log(YELLOW, `[${service.name}] skipped: ${service.cwd} does not exist`);
+    if (service.name !== 'AURA Assistant' && service.cwd && !existsSync(service.cwd)) {
+      const label = service.optional ? 'skipped (optional)' : 'missing';
+      log(YELLOW, `[${service.name}] ${label}: ${service.cwd}`);
       continue;
     }
     startService(service);
   }
 
-  const aura = services.find(s => s.name === 'AURA Assistant');
-  if (aura && await waitForHealth(aura.port, aura.health)) {
+  const aura = services[0];
+  if (await waitForHealth(aura.port, aura.health)) {
     log(GREEN, 'AURA Assistant health check passed.');
   } else {
     log(YELLOW, 'AURA Assistant health check did not pass within 15 seconds.');
   }
 
   log(CYAN, 'Press Ctrl+C to stop all started services.');
+  await new Promise(() => {});
 }
 
 function shutdown(signal) {

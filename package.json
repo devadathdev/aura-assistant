@@ -7,9 +7,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check public/app.js",
-    "start:all": "node start-all.js",
-    "start:all:sh": "./start-all.sh",
+    "check": "node --check server.js && node --check public/app.js && node --check public/aura-always-on.js && node --check start-all-safe.js",
+    "start:all": "node start-all-safe.js",
+    "start:all:legacy": "node start-all.js",
+    "start:all:sh": "./start-all-portable.sh",
     "start:forge": "cd FORGE && pnpm dev",
     "start:sentinel:api": "cd SENTINEL/sentinel/apps/api && uv run uvicorn sentinel_api.main:app --host 0.0.0.0 --port 8000 --reload",
     "start:sentinel:web": "cd SENTINEL/sentinel/apps/web && pnpm dev",

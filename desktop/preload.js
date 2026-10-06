@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('auraDesktop', Object.freeze({
   version: process.versions.electron,
   openExternal: (url) => ipcRenderer.invoke('aura:open-external', url),
   getSystemInfo: () => ipcRenderer.invoke('aura:system-info'),
+  getAppVersion: () => ipcRenderer.invoke('aura:app-version'),
   secrets: Object.freeze({
     get: (key) => ipcRenderer.invoke('aura:secret-get', key),
     set: (key, value) => ipcRenderer.invoke('aura:secret-set', key, value),

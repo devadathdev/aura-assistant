@@ -91,6 +91,7 @@ async function createWindow() {
   win.once('ready-to-show', () => win.show());
   tray = createTray({ window: win, onQuit: () => app.quit() });
   win.on('minimize', event => { event.preventDefault(); win.hide(); });
+  win.on('closed', () => { win = null; tray?.destroy(); tray = null; });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };

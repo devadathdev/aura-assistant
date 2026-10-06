@@ -99,7 +99,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      preload: join(__dirname, 'preload.js')
+      preload: join(__dirname, 'preload.cjs')
     }
   });
 

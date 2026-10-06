@@ -5,6 +5,7 @@ import { initSecureStore, getSecret, setSecret, deleteSecret } from './secure-st
 import { createFilesystemBroker } from './fs-broker.js';
 import { createProcessBroker } from './process-broker.js';
 import { installCrashLogging } from './crash-reporting.js';
+import { configureUpdater } from './updater.js';
 import { createTray } from './tray.js';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -116,6 +117,7 @@ async function createWindow() {
 app.whenReady().then(async () => {
   initSecureStore(app.getPath('userData'));
   installCrashLogging(app.getPath('userData'));
+  configureUpdater({ onStatus: status => win?.webContents.send('aura:update-status', status) });
   fsBroker = createFilesystemBroker([app.getPath('documents'), app.getPath('downloads')]);
   processBroker = createProcessBroker();
   globalShortcut.register('CommandOrControl+Shift+A', () => {

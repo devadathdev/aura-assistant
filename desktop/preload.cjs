@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('auraDesktop', Object.freeze({
     return () => ipcRenderer.removeListener('aura:hotkey', listener);
   },
   notify: (title, body) => ipcRenderer.invoke('aura:notify', { title, body }),
+  onUpdateStatus: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on('aura:update-status', listener);
+    return () => ipcRenderer.removeListener('aura:update-status', listener);
+  },
   minimize: () => ipcRenderer.send('aura:minimize'),
   maximize: () => ipcRenderer.send('aura:maximize'),
   close: () => ipcRenderer.send('aura:close')

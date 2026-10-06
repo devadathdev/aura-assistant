@@ -1,6 +1,7 @@
 import { autoUpdater } from 'electron-updater';
 
 export function configureUpdater({ onStatus = () => {} } = {}) {
+  autoUpdater.checkForUpdates().catch(error => onStatus({ state: 'error', message: error.message }));
   autoUpdater.autoDownload = false;
   autoUpdater.on('checking-for-update', () => onStatus({ state: 'checking' }));
   autoUpdater.on('update-available', info => onStatus({ state: 'available', version: info.version }));

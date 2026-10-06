@@ -24,3 +24,10 @@ Artifacts are written to `dist/`:
 - Portable Windows executable
 
 The desktop shell deliberately keeps the existing web UI and API architecture intact. Native laptop features can be added behind a small Electron preload/IPC layer later rather than mixing OS access into the web UI.
+
+
+## Native capabilities
+
+The runtime now provides a controlled IPC bridge for system information, desktop notifications, opening external HTTPS URLs, and window controls. A system tray keeps AURA available when the window is hidden.
+
+The permission policy explicitly denies privileged operations by default. Do not expose arbitrary shell commands or unrestricted filesystem access to the renderer.

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, session } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,22 @@ const root = join(__dirname, '..');
 const serverEntry = join(root, 'server.js');
 let serverProcess;
 let win;
+
+ipcMain.handle('aura:open-external', async (_event, url) => {
+  if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) throw new Error('Only http(s) URLs are allowed');
+  await shell.openExternal(url);
+  return true;
+});
+ipcMain.handle('aura:system-info', () => getSystemInfo());
+ipcMain.handle('aura:notify', (_event, payload) => {
+  const title = String(payload?.title ?? 'AURA');
+  const body = String(payload?.body ?? '');
+  if (Notification.isSupported()) new Notification({ title, body }).show();
+  return true;
+});
+ipcMain.on('aura:minimize', () => win?.minimize());
+ipcMain.on('aura:maximize', () => win?.isMaximized() ? win.unmaximize() : win?.maximize());
+ipcMain.on('aura:close', () => win?.close());
 
 function findFreePort(start = 3000) {
   return new Promise((resolve, reject) => {
@@ -64,7 +80,8 @@ async function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      preload: join(__dirname, 'preload.js')
     }
   });
 

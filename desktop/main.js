@@ -28,6 +28,7 @@ ipcMain.handle('aura:open-external', async (_event, url) => {
   return true;
 });
 ipcMain.handle('aura:system-info', () => getSystemInfo());
+ipcMain.handle('aura:app-version', () => app.getVersion());
 ipcMain.handle('aura:secret-get', (_event, key) => getSecret(String(key)));
 ipcMain.handle('aura:secret-set', (_event, key, value) => setSecret(String(key), String(value)));
 ipcMain.handle('aura:secret-delete', (_event, key) => deleteSecret(String(key)));

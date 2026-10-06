@@ -1,5 +1,10 @@
-import { app, BrowserWindow, session, shell, Notification, ipcMain } from 'electron';
+import { BrowserWindow, session, shell, Notification, ipcMain } from 'electron';
 import { getSystemInfo } from './system.js';
+import { app, globalShortcut } from 'electron';
+import { initSecureStore, getSecret, setSecret, deleteSecret } from './secure-store.js';
+import { createFilesystemBroker } from './fs-broker.js';
+import { createProcessBroker } from './process-broker.js';
+import { installCrashLogging } from './crash-reporting.js';
 import { createTray } from './tray.js';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -13,6 +18,8 @@ const serverEntry = join(root, 'server.js');
 let serverProcess;
 let win;
 let tray;
+let fsBroker;
+let processBroker;
 
 ipcMain.handle('aura:open-external', async (_event, url) => {
   if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) throw new Error('Only http(s) URLs are allowed');
@@ -20,6 +27,12 @@ ipcMain.handle('aura:open-external', async (_event, url) => {
   return true;
 });
 ipcMain.handle('aura:system-info', () => getSystemInfo());
+ipcMain.handle('aura:secret-get', (_event, key) => getSecret(String(key)));
+ipcMain.handle('aura:secret-set', (_event, key, value) => setSecret(String(key), String(value)));
+ipcMain.handle('aura:secret-delete', (_event, key) => deleteSecret(String(key)));
+ipcMain.handle('aura:fs-read', (_event, path) => fsBroker.readText(String(path)));
+ipcMain.handle('aura:fs-write', (_event, path, content, confirmed) => fsBroker.writeText(String(path), String(content), Boolean(confirmed)));
+ipcMain.handle('aura:process-execute', (_event, command, args, confirmed) => processBroker.execute(String(command), args, Boolean(confirmed)));
 ipcMain.handle('aura:notify', (_event, payload) => {
   const title = String(payload?.title ?? 'AURA');
   const body = String(payload?.body ?? '');
@@ -101,6 +114,15 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  initSecureStore(app.getPath('userData'));
+  installCrashLogging(app.getPath('userData'));
+  fsBroker = createFilesystemBroker([app.getPath('documents'), app.getPath('downloads')]);
+  processBroker = createProcessBroker();
+  globalShortcut.register('CommandOrControl+Shift+A', () => {
+    if (!win) return;
+    win.show(); win.focus();
+    win.webContents.send('aura:hotkey');
+  });
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media');
   });
@@ -116,6 +138,8 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('before-quit', () => {
   app.isQuitting = true;

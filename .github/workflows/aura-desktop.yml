@@ -2,6 +2,16 @@ name: Build AURA Desktop
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'desktop/**'
+      - 'public/**'
+      - 'server.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/aura-desktop.yml'
   push:
     tags:
       - 'v*'

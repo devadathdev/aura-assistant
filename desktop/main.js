@@ -23,7 +23,7 @@ let fsBroker;
 let processBroker;
 
 ipcMain.handle('aura:open-external', async (_event, url) => {
-  if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) throw new Error('Only http(s) URLs are allowed');
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('Only http(s) URLs are allowed');
   await shell.openExternal(url);
   return true;
 });

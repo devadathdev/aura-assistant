@@ -1,13 +1,17 @@
 {
   "name": "aura-assistant",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "A cinematic, voice-first AI assistant dashboard.",
   "type": "module",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check public/app.js && node --check public/aura-always-on.js && node --check start-all-safe.js",
+    "desktop": "electron .",
+    "desktop:dev": "electron .",
+    "desktop:build": "electron-builder --win nsis portable",
+    "check": "node --check server.js && node --check public/app.js && node --check public/aura-always-on.js && node --check start-all-safe.js && node --check desktop/main.js && node --check desktop/preload.js && node --check desktop/system.js && node --check desktop/secure-store.js && node --check desktop/fs-broker.js && node --check desktop/process-broker.js && node --check desktop/updater.js && node --check desktop/crash-reporting.js && node --check desktop/tray.js",
     "start:all": "node start-all-safe.js",
     "start:all:legacy": "node start-all.js",
     "start:all:sh": "./start-all-portable.sh",
@@ -29,6 +33,42 @@
     "wikijs": "^6.4.1"
   },
   "devDependencies": {
-    "@omniroute/opencode-provider": "^0.1.0"
+    "@omniroute/opencode-provider": "^0.1.0",
+    "electron": "^39.0.0",
+    "electron-updater": "^6.6.2",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "ai.aura.assistant",
+    "productName": "AURA Assistant",
+    "asar": true,
+    "files": [
+      "desktop/**/*",
+      "public/**/*",
+      "server.js",
+      "skills-data.json",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "AURA-Assistant-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "devadathdev",
+      "repo": "aura-assistant",
+      "releaseType": "release"
+    }
   }
 }

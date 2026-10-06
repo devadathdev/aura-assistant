@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "defaultPolicy": "deny",
+  "actions": {
+    "system.info": { "risk": "low", "requiresConfirmation": false },
+    "notification.show": { "risk": "low", "requiresConfirmation": false },
+    "browser.openExternal": { "risk": "medium", "requiresConfirmation": true },
+    "filesystem.write": { "risk": "high", "requiresConfirmation": true },
+    "process.execute": { "risk": "critical", "requiresConfirmation": true }
+  }
+}

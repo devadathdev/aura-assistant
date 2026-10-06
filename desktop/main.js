@@ -1,5 +1,6 @@
 import { app, BrowserWindow, session, shell, Notification, ipcMain } from 'electron';
 import { getSystemInfo } from './system.js';
+import { createTray } from './tray.js';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,7 @@ const root = join(__dirname, '..');
 const serverEntry = join(root, 'server.js');
 let serverProcess;
 let win;
+let tray;
 
 ipcMain.handle('aura:open-external', async (_event, url) => {
   if (typeof url !== 'string' || !/^https?:\\/\\//i.test(url)) throw new Error('Only http(s) URLs are allowed');
@@ -87,6 +89,8 @@ async function createWindow() {
   });
 
   win.once('ready-to-show', () => win.show());
+  tray = createTray({ window: win, onQuit: () => app.quit() });
+  win.on('minimize', event => { event.preventDefault(); win.hide(); });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
